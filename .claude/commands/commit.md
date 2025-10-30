@@ -1,32 +1,65 @@
+---
+argument-hint: [filter/context]
+description: Create commits with optional file filtering by context
+---
+
 # Claude Command: Commit
 
-This command helps you create well-formatted commits with conventional commit messages and emoji.
+This command helps you create well-formatted commits with conventional commit messages and emoji. You can optionally provide a filter or context to commit only specific files.
 
 ## Usage
 
-To create a commit, just type:
+To create a commit of all changes, just type:
 
 ```
 /commit
 ```
 
-Or with options:
+Or commit only specific files by providing a filter/context:
+
+```
+/commit only src/tools/
+/commit изменения для проекта А
+/commit только файлы документации
+/commit changes in tests
+```
+
+You can also use the `--no-verify` flag to skip pre-commit checks:
 
 ```
 /commit --no-verify
+/commit only backend --no-verify
 ```
 
 ## What This Command Does
 
-1. Unless specified with `--no-verify`, automatically runs pre-commit checks:
-   - `pnpm lint` to ensure code quality
-   - `pnpm build` to verify the build succeeds
-2. Checks which files are staged with `git status`
-3. If 0 files are staged, automatically adds all modified and new files with `git add`
-4. Performs a `git diff` to understand what changes are being committed
-5. Analyzes the diff to determine if multiple distinct logical changes are present
-6. If multiple distinct changes are detected, suggests breaking the commit into multiple smaller commits
-7. For each commit (or the single commit if not split), creates a commit message using emoji conventional commit format
+**Filter/Context provided:** `$ARGUMENTS`
+
+1. **Filter Files (if context provided):**
+   - If `$ARGUMENTS` is not empty, analyze all modified files using `git status`
+   - Filter files based on the provided context (e.g., directory path, project name, file type)
+   - Only stage files that match the filter criteria
+   - If `$ARGUMENTS` contains path patterns (e.g., "src/tools/", "*.test.ts"), use them directly for `git add`
+   - If `$ARGUMENTS` contains descriptive text (e.g., "проект А", "documentation"), intelligently select matching files
+
+2. **Pre-commit Checks:**
+   - Unless specified with `--no-verify`, automatically runs pre-commit checks:
+     - `pnpm lint` to ensure code quality
+     - `pnpm build` to verify the build succeeds
+
+3. **Stage Files:**
+   - Checks which files are staged with `git status`
+   - If 0 files are staged and no filter provided, automatically adds all modified and new files with `git add`
+   - If filter provided, only adds files matching the filter
+
+4. **Analyze Changes:**
+   - Performs a `git diff` to understand what changes are being committed
+   - Analyzes the diff to determine if multiple distinct logical changes are present
+   - If multiple distinct changes are detected, suggests breaking the commit into multiple smaller commits
+
+5. **Create Commit:**
+   - For each commit (or the single commit if not split), creates a commit message using emoji conventional commit format
+   - Commit message reflects the filtered changes if a filter was applied
 
 ## Best Practices for Commits
 
@@ -151,6 +184,75 @@ Example of splitting commits:
 - Seventh commit: ✅ test: add unit tests for new solc version features
 - Eighth commit: 🔒️ fix: update dependencies with security vulnerabilities
 
+## Using Filters and Context
+
+The command supports flexible filtering to commit only specific files:
+
+### Path-based Filtering
+
+Filter by exact paths or glob patterns:
+
+```bash
+/commit src/tools/                    # Only files in src/tools/
+/commit src/tools/*.ts                # Only .ts files in src/tools/
+/commit tests/                        # Only files in tests/
+/commit *.md                          # Only markdown files
+/commit src/client/garmin-client.ts   # Single specific file
+```
+
+### Descriptive Filtering
+
+Filter by natural language descriptions (AI will analyze and select matching files):
+
+```bash
+/commit только файлы тестов
+/commit только изменения в документации
+/commit changes related to project A
+/commit backend code only
+/commit изменения относящиеся к API
+/commit конфигурационные файлы
+```
+
+### Combined with Options
+
+You can combine filters with the `--no-verify` flag:
+
+```bash
+/commit src/tools/ --no-verify
+/commit только документация --no-verify
+```
+
+### Multi-Project Scenarios
+
+When working in a monorepo or project with multiple sub-projects:
+
+```bash
+/commit изменения для проекта А       # Filter by project A files
+/commit только фронтенд               # Only frontend changes
+/commit backend services              # Only backend services
+/commit shared utilities              # Only shared/common code
+```
+
+### Examples with Real Scenarios
+
+**Scenario 1:** You modified 20 files across frontend, backend, and docs. You want to commit only backend changes first:
+
+```bash
+/commit только backend
+```
+
+**Scenario 2:** You have changes in multiple tool files but want to commit only workout-related tools:
+
+```bash
+/commit src/tools/tracking/workout-tools.ts
+```
+
+**Scenario 3:** You updated both code and documentation, want to commit docs separately:
+
+```bash
+/commit только файлы .md
+```
+
 ## Command Options
 
 - `--no-verify`: Skip running the pre-commit checks (lint, build, generate:docs)
@@ -159,9 +261,21 @@ Example of splitting commits:
 
 - By default, pre-commit checks (`pnpm lint`, `pnpm build`, `pnpm generate:docs`) will run to ensure code quality
 - If these checks fail, you'll be asked if you want to proceed with the commit anyway or fix the issues first
-- If specific files are already staged, the command will only commit those files
-- If no files are staged, it will automatically stage all modified and new files
-- The commit message will be constructed based on the changes detected
+- **File Selection Priority:**
+  1. If specific files are already staged, the command will only commit those files (filter is ignored)
+  2. If filter/context is provided via `$ARGUMENTS`, only matching files will be staged and committed
+  3. If no files are staged and no filter provided, all modified and new files will be staged
+- **Smart Filtering:**
+  - Path patterns (e.g., "src/tools/", "*.ts") are used directly with `git add`
+  - Descriptive text (e.g., "только проект А") triggers intelligent file selection based on:
+    - File paths and names
+    - File content analysis (if needed)
+    - Project structure understanding
+- The commit message will be constructed based on the changes detected (filtered or all)
 - Before committing, the command will review the diff to identify if multiple commits would be more appropriate
 - If suggesting multiple commits, it will help you stage and commit the changes separately
 - Always reviews the commit diff to ensure the message matches the changes
+- **Filter Tips:**
+  - Use path patterns for precise control: `/commit src/tools/workout-tools.ts`
+  - Use natural language for semantic filtering: `/commit только изменения в API`
+  - Combine with `--no-verify` to skip pre-commit checks: `/commit backend --no-verify`
