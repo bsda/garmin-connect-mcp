@@ -55,13 +55,14 @@ class GarminConnectMCPServer {
     );
 
     // Initialize clients and tools
+    console.error('[Garmin MCP] Server starting...');
+
     const username = process.env.GARMIN_USERNAME;
     const password = process.env.GARMIN_PASSWORD;
 
     if (!username || !password) {
-      throw new Error(
-        "GARMIN_USERNAME and GARMIN_PASSWORD environment variables are required"
-      );
+      console.error('[Garmin MCP] ERROR: Missing credentials (GARMIN_USERNAME and GARMIN_PASSWORD required)');
+      throw new Error("GARMIN_USERNAME and GARMIN_PASSWORD environment variables are required");
     }
 
     this.garminClient = new GarminClient({ username, password });

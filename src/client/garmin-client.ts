@@ -111,28 +111,134 @@ export class GarminClient {
     return parts.join(' ');
   }
 
+  /**
+   * Check if error indicates HTML login page was returned instead of JSON
+   *
+   * When Garmin API returns HTML (login page) instead of expected JSON,
+   * the JSON parser throws various syntax errors. This method detects
+   * those error patterns.
+   *
+   * @param errorMessage - Error message to check
+   * @returns true if error indicates HTML login page
+   */
+  private isHtmlLoginPage(errorMessage: string): boolean {
+    const htmlIndicators = [
+      'login page',
+      'not valid JSON',
+      'Unexpected token',
+      'Unexpected token \'<\'', // HTML starts with <
+      'Unexpected token \'l\'', // "login page" starts with l
+      'SyntaxError',
+      '<html',
+      '<!DOCTYPE',
+    ];
+
+    const lowerError = errorMessage.toLowerCase();
+    return htmlIndicators.some(indicator =>
+      lowerError.includes(indicator.toLowerCase())
+    );
+  }
+
+  /**
+   * Execute operation with stdout suppressed
+   *
+   * Temporarily redirects process.stdout.write to prevent library output
+   * from breaking MCP JSON protocol. MCP uses stdio for communication,
+   * so any stdout output that's not valid JSON will cause parse errors.
+   *
+   * @param operation - Async operation to execute with suppressed stdout
+   * @returns Array of captured stdout messages
+   */
+  private async withSuppressedStdout<T>(operation: () => Promise<T>): Promise<{ result: T; captured: string[] }> {
+    const originalWrite = process.stdout.write.bind(process.stdout);
+    const outputBuffer: string[] = [];
+
+    // Temporarily replace stdout.write to capture output
+    // chunk can be string, Buffer, or Uint8Array per Node.js WriteStream signature
+    process.stdout.write = (chunk: string | Buffer | Uint8Array): boolean => {
+      outputBuffer.push(chunk.toString());
+      return true;
+    };
+
+    try {
+      const result = await operation();
+      return { result, captured: outputBuffer };
+    } finally {
+      // CRITICAL: Always restore original stdout
+      process.stdout.write = originalWrite;
+    }
+  }
+
   async initialize(): Promise<InstanceType<typeof GarminConnect>> {
+    // Return cached client if already authenticated
     if (this.client && this.isAuthenticated) {
       return this.client;
     }
 
+    // Validate credentials
     if (!this.config.username || !this.config.password) {
-      throw new Error(
-        "GARMIN_USERNAME and GARMIN_PASSWORD environment variables are required"
-      );
+      console.error('[GarminClient] ERROR: Missing credentials (GARMIN_USERNAME and GARMIN_PASSWORD required)');
+      throw new Error("GARMIN_USERNAME and GARMIN_PASSWORD environment variables are required");
     }
 
+    // Create new client instance
     this.client = new GarminConnect({
       username: this.config.username,
       password: this.config.password,
     });
 
+    // Attempt authentication with stdout suppression
+    // This prevents garmin-connect library from outputting to stdout
+    // which breaks MCP's JSON protocol over stdio
+    console.error('[GarminClient] Authenticating...');
+
     try {
-      await this.client.login();
+      const { captured } = await this.withSuppressedStdout(async () => {
+        // client is guaranteed to be non-null here as we just created it above
+        await this.client!.login();
+      });
+
+      console.error('[GarminClient] ✓ Login successful');
+
+      // Log what was suppressed if anything
+      if (captured.length > 0) {
+        console.error(`[GarminClient] Suppressed ${captured.length} stdout message(s) during login`);
+        // Log first 200 chars of captured output for debugging
+        const preview = captured.join('').substring(0, 200);
+        console.error(`[GarminClient] Captured output: ${preview}${captured.join('').length > 200 ? '...' : ''}`);
+      }
+
       this.isAuthenticated = true;
     } catch (error) {
+      console.error('[GarminClient] ✗ Login failed');
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Check if we received HTML login page instead of JSON
+      if (this.isHtmlLoginPage(errorMessage)) {
+        console.error('[GarminClient] ERROR: Received HTML login page instead of JSON');
+        console.error('[GarminClient] This usually means:');
+        console.error('  - Invalid credentials');
+        console.error('  - Account requires 2FA (not supported)');
+        console.error('  - Account is locked');
+        console.error('  - Garmin API is temporarily down');
+
+        this.isAuthenticated = false;
+        throw new Error(
+          `Authentication failed: Received HTML login page. ` +
+          `Please verify credentials and ensure 2FA is disabled. ` +
+          `Original error: ${errorMessage}`
+        );
+      }
+
+      // Log detailed error information for other errors
+      console.error(`[GarminClient] Error details: ${errorMessage}`);
+      if (error instanceof Error && error.stack) {
+        console.error(`[GarminClient] Stack trace:\n${error.stack}`);
+      }
+
       this.isAuthenticated = false;
-      throw new Error(`Failed to authenticate with Garmin Connect: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to authenticate with Garmin Connect: ${errorMessage}`);
     }
 
     return this.client;
@@ -144,17 +250,19 @@ export class GarminClient {
     } catch (error) {
       // Check if the error indicates an authentication issue
       const errorMessage = error instanceof Error ? error.message : String(error);
+
       if (errorMessage.includes('login page') ||
           errorMessage.includes('not valid JSON') ||
           errorMessage.includes('Unexpected token') ||
           errorMessage.includes('401') ||
           errorMessage.includes('403')) {
 
-        // Reset authentication state and try to login again
+        // Authentication expired, attempt re-authentication
+        console.error('[GarminClient] Authentication expired, re-authenticating...');
+
+        // Reset authentication state and re-initialize
         this.isAuthenticated = false;
         this.client = null;
-
-        // Re-initialize the client
         await this.initialize();
 
         // Retry the operation once
