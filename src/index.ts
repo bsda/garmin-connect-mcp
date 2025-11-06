@@ -8,6 +8,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 import { GarminClient } from './client/garmin-client.js';
+import { getPackageVersion } from './utils/version.js';
 import { SleepTools } from './tools/basic/sleep-tools.js';
 import { OverviewTools } from './tools/basic/overview-tools.js';
 import { HealthTools } from './tools/basic/health-tools.js';
@@ -42,10 +43,12 @@ class GarminConnectMCPServer {
   private workoutTools: WorkoutTools;
 
   constructor() {
+    const version = getPackageVersion();
+
     this.server = new Server(
       {
         name: "garmin-connect-mcp",
-        version: "0.2.0",
+        version: version,
       },
       {
         capabilities: {
@@ -55,7 +58,7 @@ class GarminConnectMCPServer {
     );
 
     // Initialize clients and tools
-    console.error('[Garmin MCP] Server starting...');
+    console.error(`[Garmin MCP] Server v${version} starting...`);
 
     const username = process.env.GARMIN_USERNAME;
     const password = process.env.GARMIN_PASSWORD;
