@@ -35,11 +35,6 @@ pnpm lint:fix         # Auto-fix linting issues
 pnpm test             # Run tests in watch mode
 pnpm test:run         # Run tests once
 pnpm test:coverage    # Generate coverage report
-
-# Task Management
-backlog task list --plain              # List all tasks
-backlog task create "Title" -d "Desc" # Create new task
-backlog task edit <id> -s "Done"      # Update task status
 ```
 
 **IMPORTANT:** Always use `pnpm`, never `npm` or `yarn`.
@@ -72,95 +67,25 @@ export function fetchData(): any { ... }
 - Mock external dependencies (Garmin API calls)
 - Always run `pnpm typecheck && pnpm test:run` before committing
 
-## Task Management with Backlog.md CLI
+## Task Management
 
-**IMPORTANT:** We use the `backlog` CLI tool for all task operations. NEVER edit task markdown files directly.
-
-### Quick Reference
-
-```bash
-# Create tasks
-backlog task create "Task title" -d "Description" --ac "Criteria 1" --ac "Criteria 2"
-backlog task create "[TASK] Name" -p <parent-id> --priority high
-
-# Manage tasks
-backlog task list --plain                    # List all tasks (AI-friendly)
-backlog task list -s "To Do" --plain         # Filter by status
-backlog task edit <id> -s "In Progress"      # Update status
-backlog task edit <id> --plan "1. Step one" # Add implementation plan
-backlog task edit <id> --check-ac 1          # Check acceptance criteria
-backlog task edit <id> --notes "Details"     # Add notes
-backlog task archive <id>                    # Archive completed task
-```
-
-### Task Hierarchy
+This project uses **Backlog.md CLI** for task management. For all task-related operations, use the `backlog-md` skill:
 
 ```
-[PROJ] Project Name        # Top-level initiative
-├── [PHASE] Phase Name     # Time-boxed phase/sprint
-    ├── [EPIC] Epic Name   # Optional grouping
-    └── [TASK] Task Name   # Individual work items
+/backlog-md
 ```
 
-### Task Statuses
-- "To Do" - Ready to work on
-- "In Progress" - Actively being worked on
-- "Done" - Completed, ready to archive
+The skill provides comprehensive guidance on:
+- Task creation, editing, and status management
+- Task hierarchy and organization
+- Acceptance criteria management
+- Development workflows
+- Best practices for working with tasks
 
-**IMPORTANT - Status Management:**
-- **When starting** a task → Update status to "In Progress": `backlog task edit <id> -s "In Progress"`
-- **When finishing** a task → Update status to "Done": `backlog task edit <id> -s "Done"`
-- Always update task status in backlog to keep project status accurate
-
-### Task Creation Best Practices
-
-**Title:** Brief, clear summary
-
-**Description:** Explain WHY the task exists, not HOW to implement it
-
-**Acceptance Criteria:** Focus on outcomes and testable behaviors, not implementation steps
-- ✅ "User can log in with valid credentials"
-- ❌ "Add handleLogin() function in auth.ts"
-
-**Requirements:**
-- Tasks must be atomic (single PR scope)
-- Each task should be testable independently
-- Never reference tasks that don't exist yet
-- Use `--plain` flag when scripting or automating
-
-### Development Workflow
-
-1. **Pick a task:**
-   ```bash
-   backlog task list -s "To Do" --plain
-   backlog task edit <id> -s "In Progress" -a @developer
-   ```
-
-2. **Add implementation plan:**
-   ```bash
-   backlog task edit <id> --plan "1. Research\n2. Implement\n3. Test"
-   ```
-
-3. **Implement the task:**
-   - Write code following style guidelines
-   - Add tests for new functionality
-   - Run `pnpm typecheck && pnpm test:run`
-
-4. **Mark acceptance criteria as complete:**
-   ```bash
-   backlog task edit <id> --check-ac 1 --check-ac 2
-   ```
-
-5. **Add implementation notes:**
-   ```bash
-   backlog task edit <id> --notes "$(date '+%Y-%m-%d %H:%M:%S')\nCompleted using X approach"
-   ```
-
-6. **Complete the task:**
-   ```bash
-   backlog task edit <id> -s "Done"
-   backlog task archive <id>
-   ```
+**Quick Tips:**
+- **NEVER** edit task markdown files directly - always use the `backlog` CLI
+- **Update task status** when starting ("In Progress") and completing ("Done") work
+- Use `--plain` flag for AI-friendly output when scripting
 
 ## Multi-Agent Workflows (MANDATORY)
 
@@ -225,10 +150,9 @@ When the user asks to **create a task**:
    - Identify dependencies and requirements
 
 2. **Create in Backlog** - After analysis:
-   - Use `backlog task create` with proper structure
-   - Include description, acceptance criteria
+   - Use `/backlog-md` skill for task management guidance
+   - Create tasks with proper structure, description, and acceptance criteria
    - Set appropriate priority and parent task
-   - Add any relevant tags or metadata
 
 **Example:**
 ```
@@ -236,7 +160,7 @@ User: "Create a task for implementing heart rate zone analysis"
 
 Response:
 → @agent-analyst - Analyze requirements and define specifications
-→ Create task in backlog with specifications from analysis
+→ Use /backlog-md skill to create task with specifications from analysis
 ```
 
 **Critical Rules:**
@@ -259,7 +183,7 @@ Agents are located in `.claude/agents/` directory:
 When acting as project manager:
 - Only one developer agent works in parallel
 - Always ask user confirmation before starting new tasks
-- Use backlog CLI for all task operations
+- Use `/backlog-md` skill for all task management operations
 - After development, delegate to reviewer agent
 - Run full test suite before marking phase complete: `pnpm test:run && pnpm typecheck`
 
@@ -281,7 +205,7 @@ When acting as project manager:
 ---
 
 **Tips for AI Agents:**
-- Always use `--plain` flag with backlog commands for AI-friendly output
+- Use `/backlog-md` skill for all task management operations
 - Think from the perspective of future AI agents when creating tasks
 - Ensure task descriptions contain sufficient context for independent work
 - Ask clarifying questions when requirements are ambiguous
