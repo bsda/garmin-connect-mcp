@@ -73,7 +73,7 @@ No installation required! Configure directly in your MCP client:
   "mcpServers": {
     "garmin-connect": {
       "command": "npx",
-      "args": ["-y", "garmin-connect-mcp"],
+      "args": ["-y", "garmin-connect-mcp@latest"],
       "env": {
         "GARMIN_USERNAME": "your_username",
         "GARMIN_PASSWORD": "your_password"
@@ -87,7 +87,7 @@ No installation required! Configure directly in your MCP client:
 
 Using the Claude Code CLI (recommended):
 ```bash
-claude mcp add garmin-connect npx garmin-connect-mcp \
+claude mcp add garmin-connect npx garmin-connect-mcp@latest \
   --env GARMIN_USERNAME=your_username \
   --env GARMIN_PASSWORD=your_password
 ```
@@ -98,7 +98,7 @@ Or manually configure (`.claude/mcp.json` in your project):
   "mcpServers": {
     "garmin-connect": {
       "command": "npx",
-      "args": ["-y", "garmin-connect-mcp"],
+      "args": ["-y", "garmin-connect-mcp@latest"],
       "env": {
         "GARMIN_USERNAME": "your_username",
         "GARMIN_PASSWORD": "your_password"
@@ -115,7 +115,7 @@ The `-y` flag automatically accepts the npx prompt, ensuring smooth startup.
 Install globally via npm:
 
 ```bash
-npm install -g garmin-connect-mcp
+npm install -g garmin-connect-mcp@latest
 ```
 
 Then configure without npx:
