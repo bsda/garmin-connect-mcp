@@ -1,6 +1,6 @@
 import GarminConnectLib from "garmin-connect";
 import { GarminClientConfig, DailyStepsData } from '../types/garmin-types.js';
-import type { WorkoutPayload, WorkoutResponse, WorkoutScheduleResponse, DeleteResponse, ScheduledWorkout, SportType } from '../types/workout.js';
+import type { WorkoutPayload, WorkoutResponse, WorkoutScheduleResponse, ScheduledWorkout, SportType } from '../types/workout.js';
 import { SPORT_TYPE_MAPPING } from '../types/workout.js';
 import { DebugLogger } from '../utils/debug-logger.js';
 
@@ -31,11 +31,8 @@ interface ICalendarItem {
 interface ExtendedGarminClient {
   client: {
     get: (url: string) => Promise<unknown>;
-    delete: (url: string) => Promise<unknown>;
-    put: (url: string, data: unknown) => Promise<unknown>;
   };
   addWorkout: (payload: WorkoutPayload) => Promise<unknown>;
-  deleteWorkout: (workout: { workoutId: string }) => Promise<unknown>;
   getUserProfile: () => Promise<{ profileId: number }>;
   post: (url: string, data: unknown) => Promise<unknown>;
 }
@@ -49,66 +46,6 @@ export class GarminClient {
   constructor(config: GarminClientConfig) {
     this.config = config;
     this.debugLogger = new DebugLogger();
-  }
-
-  /**
-   * Extract HTTP status code from error message
-   *
-   * Attempts to parse common HTTP status codes from error messages.
-   * Returns null if no status code is found.
-   *
-   * @param error - Error object or message
-   * @returns HTTP status code or null
-   */
-  private extractHttpStatus(error: unknown): number | null {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    // Common patterns for HTTP status codes in error messages
-    const patterns = [
-      /\b(\d{3})\b/,        // Generic 3-digit status code
-      /status[:\s]+(\d{3})/i, // "status: 404" or "status 404"
-      /code[:\s]+(\d{3})/i,   // "code: 404" or "code 404"
-    ];
-
-    for (const pattern of patterns) {
-      const match = errorMessage.match(pattern);
-      if (match && match[1]) {
-        const status = parseInt(match[1], 10);
-        // Validate it's a real HTTP status code (100-599)
-        if (status >= 100 && status < 600) {
-          return status;
-        }
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Enhance error message with HTTP method, URL, and status
-   *
-   * Adds diagnostic information to error messages to aid debugging.
-   *
-   * @param error - Original error
-   * @param method - HTTP method
-   * @param url - Request URL
-   * @returns Enhanced error message
-   */
-  private enhanceErrorMessage(error: unknown, method: string, url: string): string {
-    const originalMessage = error instanceof Error ? error.message : String(error);
-    const status = this.extractHttpStatus(error);
-
-    const parts = [
-      `${method} ${url}`,
-    ];
-
-    if (status !== null) {
-      parts.push(`(HTTP ${status})`);
-    }
-
-    parts.push(`- ${originalMessage}`);
-
-    return parts.join(' ');
   }
 
   /**
@@ -278,13 +215,6 @@ export class GarminClient {
     return await this.retryWithReauth(async () => {
       const client = await this.initialize();
       return await client.getSleepData(date);
-    });
-  }
-
-  async getSleepDuration(date: Date) {
-    return await this.retryWithReauth(async () => {
-      const client = await this.initialize();
-      return await client.getSleepDuration(date);
     });
   }
 
@@ -516,207 +446,6 @@ export class GarminClient {
   }
 
   /**
-   * Deletes a workout from Garmin Connect library
-   *
-   * Uses the library's built-in deleteWorkout method to remove a workout.
-   * The workout is permanently deleted from the user's workout library.
-   *
-   * @param workoutId - ID of the workout to delete (string format)
-   * @returns Delete response with confirmation
-   * @throws Error if deletion fails or workout not found
-   *
-   * @example
-   * ```typescript
-   * const response = await client.deleteWorkout("1354294595");
-   * console.log(response.message); // "Workout deleted successfully"
-   * ```
-   */
-  async deleteWorkout(workoutId: string): Promise<DeleteResponse> {
-    return await this.retryWithReauth(async () => {
-      const client = await this.initialize();
-
-      try {
-        // Use the built-in deleteWorkout method from garmin-connect library
-        await (client as unknown as ExtendedGarminClient).deleteWorkout({ workoutId });
-
-        return {
-          success: true,
-          message: `Workout ${workoutId} deleted successfully`,
-        };
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-
-        // Check for specific HTTP error codes
-        if (errorMessage.includes('404')) {
-          throw new Error(`Workout not found: ${workoutId}`);
-        }
-        if (errorMessage.includes('401') || errorMessage.includes('403')) {
-          // Let retryWithReauth handle authentication errors
-          throw error;
-        }
-        if (errorMessage.includes('500')) {
-          throw new Error(`Garmin server error: ${errorMessage}`);
-        }
-        if (errorMessage.includes('503')) {
-          throw new Error(`Garmin service unavailable: ${errorMessage}`);
-        }
-
-        // Re-throw with context for other errors
-        throw new Error(`Failed to delete workout: ${errorMessage}`);
-      }
-    });
-  }
-
-  /**
-   * Unschedules a workout from a specific date in Garmin Connect calendar
-   *
-   * Removes a scheduled workout from the calendar without deleting the workout
-   * from the library. The workout remains available for future scheduling.
-   *
-   * @param workoutId - ID of the workout to unschedule
-   * @param date - Date from which to unschedule the workout
-   * @returns Delete response with confirmation
-   * @throws Error if unscheduling fails or workout not found
-   *
-   * @example
-   * ```typescript
-   * const response = await client.unscheduleWorkout(1354294595, new Date('2025-10-13'));
-   * console.log(response.message); // "Workout unscheduled from 2025-10-13"
-   * ```
-   */
-  async unscheduleWorkout(workoutId: number, date: Date): Promise<DeleteResponse> {
-    return await this.retryWithReauth(async () => {
-      const client = await this.initialize();
-
-      // Format date as YYYY-MM-DD
-      const calendarDate = date.toISOString().split('T')[0];
-
-      // Use the DELETE endpoint with workoutId and date parameter
-      const unscheduleUrl = `https://connectapi.garmin.com/workout-service/schedule/${workoutId}?date=${calendarDate}`;
-
-      try {
-        // Log request if debug enabled
-        this.debugLogger.logRequest('DELETE', unscheduleUrl, { workoutId, date: calendarDate });
-
-        // Send unschedule request using client.delete
-        const response = await (client as unknown as ExtendedGarminClient).client.delete(unscheduleUrl);
-
-        // Log response if debug enabled
-        this.debugLogger.logResponse('DELETE', unscheduleUrl, 200, response);
-
-        return {
-          success: true,
-          message: `Workout ${workoutId} unscheduled from ${calendarDate}`,
-        };
-      } catch (error) {
-        // Log error if debug enabled
-        this.debugLogger.logError('DELETE', unscheduleUrl, error);
-
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        const status = this.extractHttpStatus(error);
-
-        // Check for specific HTTP error codes
-        if (status === 404 || errorMessage.includes('404')) {
-          throw new Error(`Scheduled workout not found: ${workoutId} on ${calendarDate}. ${this.enhanceErrorMessage(error, 'DELETE', unscheduleUrl)}`);
-        }
-        if (status === 401 || status === 403 || errorMessage.includes('401') || errorMessage.includes('403')) {
-          // Let retryWithReauth handle authentication errors
-          throw error;
-        }
-        if (status === 500 || errorMessage.includes('500')) {
-          throw new Error(`Garmin server error: ${this.enhanceErrorMessage(error, 'DELETE', unscheduleUrl)}`);
-        }
-        if (status === 503 || errorMessage.includes('503')) {
-          throw new Error(`Garmin service unavailable: ${this.enhanceErrorMessage(error, 'DELETE', unscheduleUrl)}`);
-        }
-
-        // Re-throw with enhanced error context
-        throw new Error(`Failed to unschedule workout: ${this.enhanceErrorMessage(error, 'DELETE', unscheduleUrl)}`);
-      }
-    });
-  }
-
-  /**
-   * Updates an existing workout in Garmin Connect
-   *
-   * Uses PUT request to update workout details including name, description, and steps.
-   * The workout must already exist (use workoutId from creation).
-   *
-   * @param workoutId - ID of the workout to update
-   * @param payload - Complete workout payload with updated fields
-   * @returns Updated workout response
-   * @throws Error if update fails or workout not found
-   *
-   * @example
-   * ```typescript
-   * const workout = new WorkoutBuilder("Updated 5K", "running")
-   *   .setDescription("New description")
-   *   .addWarmup(EndConditionFactory.time(600))
-   *   .build();
-   *
-   * const response = await client.updateWorkout(1354294595, workout);
-   * console.log(`Updated: ${response.workoutName}`);
-   * ```
-   */
-  async updateWorkout(workoutId: number, payload: WorkoutPayload): Promise<WorkoutResponse> {
-    return await this.retryWithReauth(async () => {
-      const client = await this.initialize();
-
-      try {
-        // Use the PUT endpoint to update the workout
-        const updateUrl = `https://connectapi.garmin.com/workout-service/workout/${workoutId}`;
-
-        // Ensure workoutId is in the payload
-        const updatePayload = {
-          ...payload,
-          workoutId,
-        };
-
-        // Send update request using client.put
-        const response = await (client as unknown as ExtendedGarminClient).client.put(
-          updateUrl,
-          updatePayload
-        );
-
-        // Validate response structure
-        if (!response || typeof response !== 'object') {
-          throw new Error('Invalid response from Garmin API: response is not an object');
-        }
-
-        const resp = response as Record<string, unknown>;
-        if (!resp.workoutId) {
-          throw new Error('Invalid response from Garmin API: missing workout ID');
-        }
-
-        return response as WorkoutResponse;
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-
-        // Check for specific HTTP error codes
-        if (errorMessage.includes('404')) {
-          throw new Error(`Workout not found: ${workoutId}`);
-        }
-        if (errorMessage.includes('400')) {
-          throw new Error(`Bad request: Invalid workout payload. ${errorMessage}`);
-        }
-        if (errorMessage.includes('401') || errorMessage.includes('403')) {
-          // Let retryWithReauth handle authentication errors
-          throw error;
-        }
-        if (errorMessage.includes('500')) {
-          throw new Error(`Garmin server error: ${errorMessage}`);
-        }
-        if (errorMessage.includes('503')) {
-          throw new Error(`Garmin service unavailable: ${errorMessage}`);
-        }
-
-        // Re-throw with context for other errors
-        throw new Error(`Failed to update workout: ${errorMessage}`);
-      }
-    });
-  }
-
-  /**
    * Gets scheduled workouts for a date range from Garmin Connect calendar
    *
    * Uses the calendar-service API to retrieve scheduled workouts.
@@ -823,58 +552,6 @@ export class GarminClient {
       }
 
       return allWorkouts;
-    });
-  }
-
-  /**
-   * Gets detailed information about a specific workout
-   *
-   * Uses the library's built-in getWorkoutDetail method to retrieve complete
-   * workout information including steps, targets, and scheduling details.
-   *
-   * @param workoutId - ID of the workout to retrieve (string format)
-   * @returns Complete workout details from Garmin API
-   * @throws Error if retrieval fails or workout not found
-   *
-   * @example
-   * ```typescript
-   * const details = await client.getWorkoutDetail("1354294595");
-   * console.log(`Workout: ${details.workoutName}`);
-   * console.log(`Steps: ${details.workoutSegments.length}`);
-   * ```
-   */
-  async getWorkoutDetail(workoutId: string): Promise<unknown> {
-    return await this.retryWithReauth(async () => {
-      const client = await this.initialize();
-
-      try {
-        // Use the built-in getWorkoutDetail method from garmin-connect library
-        const response = await (client as unknown as ExtendedGarminClient & {
-          getWorkoutDetail: (workout: { workoutId: string }) => Promise<unknown>;
-        }).getWorkoutDetail({ workoutId });
-
-        return response;
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-
-        // Check for specific HTTP error codes
-        if (errorMessage.includes('404')) {
-          throw new Error(`Workout not found: ${workoutId}`);
-        }
-        if (errorMessage.includes('401') || errorMessage.includes('403')) {
-          // Let retryWithReauth handle authentication errors
-          throw error;
-        }
-        if (errorMessage.includes('500')) {
-          throw new Error(`Garmin server error: ${errorMessage}`);
-        }
-        if (errorMessage.includes('503')) {
-          throw new Error(`Garmin service unavailable: ${errorMessage}`);
-        }
-
-        // Re-throw with context for other errors
-        throw new Error(`Failed to get workout details: ${errorMessage}`);
-      }
     });
   }
 }

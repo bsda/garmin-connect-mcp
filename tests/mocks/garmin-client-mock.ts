@@ -29,17 +29,6 @@ export const createMockGarminClient = (): GarminClient => {
       return Promise.resolve(mockSleepData);
     }),
 
-    getSleepDuration: vi.fn().mockImplementation((date: Date) => {
-      const dateStr = date.toISOString().split('T')[0];
-      if (dateStr === '2025-01-01') {
-        return Promise.resolve(null);
-      }
-      return Promise.resolve({
-        hours: 8,
-        minutes: 30
-      });
-    }),
-
     getActivities: vi.fn().mockImplementation((start: number = 0, limit: number = 20) => {
       const activities = [...mockActivitiesData];
       return Promise.resolve(activities.slice(start, start + limit));
@@ -158,7 +147,6 @@ export const createFailingMockGarminClient = (): GarminClient => {
   const failingMock = {
     initialize: vi.fn().mockRejectedValue(new Error('Authentication failed')),
     getSleepData: vi.fn().mockRejectedValue(new Error('Failed to fetch sleep data')),
-    getSleepDuration: vi.fn().mockRejectedValue(new Error('Failed to fetch sleep duration')),
     getActivities: vi.fn().mockRejectedValue(new Error('Failed to fetch activities')),
     getActivity: vi.fn().mockRejectedValue(new Error('Failed to fetch activity details')),
     getSteps: vi.fn().mockRejectedValue(new Error('Failed to fetch steps data')),

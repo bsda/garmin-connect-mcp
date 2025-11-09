@@ -8,9 +8,9 @@
  *
  * Tools provided:
  * - getHealthMetrics: Retrieve aggregated health metrics with flexible metric selection
- * - getStepsData: Get detailed step count and distance data
  * - getHeartRateData: Retrieve comprehensive heart rate statistics and time-series data
  * - getWeightData: Access body composition including weight, BMI, body fat, and muscle mass
+ * - getHydrationData: Get daily hydration (water intake) data
  *
  * @category Basic
  * @see ../../client/garmin-client for Garmin Connect API integration
@@ -26,7 +26,6 @@ import { BaseDirectTool } from '../base/BaseDirectTool.js';
 import { ToolResult } from '../../types/garmin-types.js';
 import {
   GetHealthMetricsParams,
-  GetStepsDataParams,
   GetHeartRateDataParams,
   GetWeightDataParams,
   GetHydrationDataParams
@@ -210,96 +209,6 @@ export class HealthTools extends BaseDirectTool {
     }
   }
 
-  /**
-   * Retrieve detailed step count and distance data to track daily movement
-   *
-   * Provides step count, goal progress, and distance metrics for assessing daily
-   * activity levels. Essential for monitoring general activity, identifying sedentary
-   * days, and tracking progress toward step goals.
-   *
-   * Uses 'steps' preset for summary mode with basic counts and goal progress.
-   *
-   * @param params - Steps data retrieval parameters
-   * @param params.date - Target date in YYYY-MM-DD format (defaults to today)
-   * @param params.includeSummaryOnly - Return only key metrics (steps, goal progress, distance)
-   * @param params.summary - [DEPRECATED: Use includeSummaryOnly] Legacy summary flag
-   * @returns MCP tool result with steps data or error message
-   * @throws Error if Garmin API is unavailable
-   *
-   * @example
-   * // Get today's steps in summary format
-   * const result = await healthTools.getStepsData({
-   *   includeSummaryOnly: true
-   * });
-   *
-   * @see getHealthMetrics for combined health metrics including steps
-   */
-  async getStepsData(params: GetStepsDataParams): Promise<ToolResult> {
-    const date = params?.date ? new Date(params.date) : new Date();
-    // includeSummaryOnly takes precedence over deprecated summary parameter
-    const useSummary = params?.includeSummaryOnly ?? params?.summary ?? false;
-
-    try {
-      // Use the new getDailyStepsData method to get rich step data
-      const stepsData = await this.garminClient.getDailyStepsData(date);
-
-      if (!stepsData) {
-        return {
-          content: [{
-            type: "text" as const,
-            text: `No steps data available for ${date.toDateString()}`
-          }]
-        };
-      }
-
-      // Calculate goal progress percentage
-      const goalProgress = stepsData.stepGoal > 0
-        ? Math.round((stepsData.totalSteps / stepsData.stepGoal) * 100)
-        : 0;
-
-      // Convert distance from meters to kilometers
-      const distanceKm = stepsData.totalDistance / 1000;
-
-      let processedData: Record<string, unknown>;
-
-      if (useSummary) {
-        // Summary mode: create a simplified flat structure
-        processedData = {
-          date: stepsData.calendarDate,
-          steps: stepsData.totalSteps,
-          goalProgress: `${goalProgress}%`,
-          distanceKm: Math.round(distanceKm * 100) / 100
-        };
-      } else {
-        // Detailed mode: include all data
-        processedData = {
-          date: stepsData.calendarDate,
-          steps: {
-            total: stepsData.totalSteps,
-            goal: stepsData.stepGoal,
-            goalProgress: goalProgress,
-            goalProgressPercent: `${goalProgress}%`
-          },
-          distance: {
-            meters: stepsData.totalDistance,
-            kilometers: Math.round(distanceKm * 100) / 100
-          }
-        };
-      }
-
-      const cleanedData = removeEmptyValues(processedData);
-
-      return {
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify(cleanedData, null, 2)
-        }]
-      };
-
-    } catch (error) {
-      return this.createErrorResponse(formatError('api', 'get steps data', error instanceof Error ? error : 'Unknown error'));
-    }
-  }
 
   /**
    * Retrieve detailed heart rate data to monitor cardiovascular health and recovery

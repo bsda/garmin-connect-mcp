@@ -39,10 +39,6 @@ describe('Error Handling Validation', () => {
       const sleepDataResult = await sleepTools.getSleepData({ date: '2025-01-15' });
       expect(sleepDataResult).toHaveProperty('isError', true);
       expect(sleepDataResult.content[0].text).toContain('Failed to get sleep data');
-
-      const sleepDurationResult = await sleepTools.getSleepDuration({ date: '2025-01-15' });
-      expect(sleepDurationResult).toHaveProperty('isError', true);
-      expect(sleepDurationResult.content[0].text).toContain('Failed to get sleep duration');
     });
   });
 
@@ -75,8 +71,7 @@ describe('Error Handling Validation', () => {
 
       const responses = [
         await overviewTools.getDailyOverview({ date: '2025-01-15' }),
-        await sleepTools.getSleepData({ date: '2025-01-15' }),
-        await sleepTools.getSleepDuration({ date: '2025-01-15' })
+        await sleepTools.getSleepData({ date: '2025-01-15' })
       ];
 
       responses.forEach((response, index) => {

@@ -9,7 +9,6 @@
  *
  * Tools provided:
  * - getSleepData: Retrieve detailed sleep metrics with optional summary or field filtering
- * - getSleepDuration: Get total sleep duration for quick tracking
  *
  * @category Basic
  * @see ../../client/garmin-client for Garmin Connect API integration
@@ -17,12 +16,12 @@
  * @see ../basic/health-tools for related health metrics (heart rate, steps)
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 
 import { GarminClient } from '../../client/garmin-client.js';
 import { formatError } from '../../utils/response-helpers.js';
 import { BaseDirectTool } from '../base/BaseDirectTool.js';
-import { GetSleepDataParams, GetSleepDurationParams } from '../../types/tool-params.js';
+import { GetSleepDataParams } from '../../types/tool-params.js';
 import { ToolResult } from '../../types/garmin-types.js';
 import { SleepData } from 'garmin-connect/dist/garmin/types/sleep.js';
 import { createSummary } from '../../utils/summary-helpers.js';
@@ -119,62 +118,4 @@ export class SleepTools extends BaseDirectTool {
     }
   }
 
-  /**
-   * Retrieve total sleep duration for quick sleep tracking
-   *
-   * Provides a simple sleep duration metric without detailed breakdowns. Useful for
-   * quick sleep tracking, trend analysis, and identifying insufficient sleep days.
-   * Returns duration in both minutes and hours for convenience.
-   *
-   * @param params - Sleep duration retrieval parameters
-   * @param params.date - Target date in YYYY-MM-DD format (defaults to today)
-   * @returns MCP tool result with sleep duration or error message
-   * @throws Error if date format is invalid or Garmin API is unavailable
-   *
-   * @example
-   * // Get today's sleep duration
-   * const result = await sleepTools.getSleepDuration({});
-   *
-   * @see getSleepData for detailed sleep metrics including sleep stages
-   */
-  async getSleepDuration(params: GetSleepDurationParams): Promise<ToolResult> {
-    const date = params?.date ? new Date(params.date) : new Date();
-
-    try {
-      const duration = await this.garminClient.getSleepDuration(date);
-
-      // Handle different data formats that might be returned
-      let durationText: string;
-      if (typeof duration === 'number') {
-        durationText = `${duration} minutes`;
-      } else if (typeof duration === 'object' && duration !== null) {
-        // If it's an object, try to extract duration information
-        const obj = duration as any;
-        if (obj.sleepTimeSeconds) {
-          const minutes = Math.round(obj.sleepTimeSeconds / 60);
-          durationText = `${minutes} minutes (${Math.round(minutes / 60 * 100) / 100} hours)`;
-        } else if (obj.totalSleepTimeSeconds) {
-          const minutes = Math.round(obj.totalSleepTimeSeconds / 60);
-          durationText = `${minutes} minutes (${Math.round(minutes / 60 * 100) / 100} hours)`;
-        } else if (obj.duration) {
-          durationText = `${obj.duration} minutes`;
-        } else {
-          // If we can't parse it, show the full object as JSON
-          durationText = `Raw data: ${JSON.stringify(duration, null, 2)}`;
-        }
-      } else {
-        durationText = `${duration}`;
-      }
-
-      return {
-        content: [{
-          type: "text" as const,
-          text: `Sleep duration for ${date.toDateString()}: ${durationText}`
-        }]
-      };
-
-    } catch (error) {
-      return this.createErrorResponse(formatError('api', 'get sleep duration', error instanceof Error ? error : 'Unknown error'));
-    }
-  }
 }
