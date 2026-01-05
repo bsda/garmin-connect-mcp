@@ -29,6 +29,52 @@ interface ICalendarItem {
   };
 }
 
+// Workout detail response from Garmin API
+export interface IWorkoutDetail {
+  workoutId: number;
+  workoutName: string;
+  description?: string;
+  sportType: {
+    sportTypeId: number;
+    sportTypeKey: string;
+    displayOrder?: number;
+  };
+  estimatedDurationInSecs: number;
+  estimatedDistanceInMeters: number | null;
+  createdDate: string;
+  updateDate: string;
+  workoutSegments: Array<{
+    segmentOrder: number;
+    sportType: {
+      sportTypeId: number;
+      sportTypeKey: string;
+    };
+    workoutSteps: Array<{
+      type: string;
+      stepId: number;
+      stepOrder: number;
+      stepType: {
+        stepTypeId: number;
+        stepTypeKey: string;
+      };
+      endCondition: {
+        conditionTypeId: number;
+        conditionTypeKey: string;
+      };
+      endConditionValue: number | null;
+      targetType: {
+        workoutTargetTypeId: number;
+        workoutTargetTypeKey: string;
+      };
+      targetValueOne: number | null;
+      targetValueTwo: number | null;
+      zoneNumber: number | null;
+      numberOfIterations?: number;
+      workoutSteps?: unknown[];
+    }>;
+  }>;
+}
+
 // Extended interface for internal Garmin Connect client methods
 interface ExtendedGarminClient {
   client: {
@@ -37,6 +83,7 @@ interface ExtendedGarminClient {
   };
   addWorkout: (payload: WorkoutPayload) => Promise<unknown>;
   deleteWorkout: (workout: { workoutId: string }) => Promise<unknown>;
+  getWorkoutDetail: (workout: { workoutId: string }) => Promise<IWorkoutDetail>;
   getUserProfile: () => Promise<{ profileId: number }>;
   post: (url: string, data: unknown) => Promise<unknown>;
 }
@@ -660,6 +707,55 @@ export class GarminClient {
         }
 
         throw new Error(`Failed to unschedule workout: ${errorMessage}`);
+      }
+    });
+  }
+
+  /**
+   * Gets detailed information for a specific workout from Garmin Connect
+   *
+   * Retrieves the complete workout structure including all segments and steps.
+   *
+   * @param workoutId - The ID of the workout to retrieve
+   * @returns Workout detail with segments and steps
+   * @throws Error if workout not found or retrieval fails
+   *
+   * @example
+   * ```typescript
+   * const detail = await client.getWorkoutDetails(1354294595);
+   * console.log(`Workout: ${detail.workoutName}`);
+   * console.log(`Steps: ${detail.workoutSegments[0].workoutSteps.length}`);
+   * ```
+   */
+  async getWorkoutDetails(workoutId: number): Promise<IWorkoutDetail> {
+    return await this.retryWithReauth(async () => {
+      const client = await this.initialize();
+
+      try {
+        // Use the built-in getWorkoutDetail method from garmin-connect library
+        // Library expects workoutId as string
+        const response = await (client as unknown as ExtendedGarminClient).getWorkoutDetail({
+          workoutId: String(workoutId)
+        });
+
+        return response;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (errorMessage.includes('404')) {
+          throw new Error(`Workout not found: ${workoutId}`);
+        }
+        if (errorMessage.includes('400')) {
+          throw new Error(`Bad request: Invalid workout ID. ${errorMessage}`);
+        }
+        if (errorMessage.includes('401') || errorMessage.includes('403')) {
+          throw error; // Let retryWithReauth handle
+        }
+        if (errorMessage.includes('500')) {
+          throw new Error(`Garmin server error: ${errorMessage}`);
+        }
+
+        throw new Error(`Failed to get workout details: ${errorMessage}`);
       }
     });
   }

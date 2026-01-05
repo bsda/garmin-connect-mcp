@@ -136,6 +136,36 @@ export const createMockGarminClient = (): GarminClient => {
       });
 
       return Promise.resolve(scheduledWorkouts);
+    }),
+
+    getWorkoutDetails: vi.fn().mockImplementation((workoutId: number) => {
+      if (workoutId === 999999999) {
+        return Promise.reject(new Error('Workout not found: 999999999'));
+      }
+      return Promise.resolve({
+        ...mockWorkoutDetail,
+        workoutId
+      });
+    }),
+
+    deleteWorkout: vi.fn().mockImplementation((workoutId: number) => {
+      if (workoutId === 999999999) {
+        return Promise.reject(new Error('Workout not found: 999999999'));
+      }
+      return Promise.resolve({
+        success: true,
+        message: `Workout ${workoutId} deleted successfully`
+      });
+    }),
+
+    unscheduleWorkout: vi.fn().mockImplementation((scheduleId: number) => {
+      if (scheduleId === 999999999) {
+        return Promise.reject(new Error('Schedule not found: 999999999'));
+      }
+      return Promise.resolve({
+        success: true,
+        message: `Schedule ${scheduleId} removed from calendar`
+      });
     })
   };
 
@@ -157,7 +187,10 @@ export const createFailingMockGarminClient = (): GarminClient => {
     getUserProfile: vi.fn().mockRejectedValue(new Error('Failed to fetch user profile')),
     createWorkout: vi.fn().mockRejectedValue(new Error('Failed to create workout')),
     scheduleWorkout: vi.fn().mockRejectedValue(new Error('Failed to schedule workout')),
-    getScheduledWorkouts: vi.fn().mockRejectedValue(new Error('Failed to retrieve scheduled workouts'))
+    getScheduledWorkouts: vi.fn().mockRejectedValue(new Error('Failed to retrieve scheduled workouts')),
+    getWorkoutDetails: vi.fn().mockRejectedValue(new Error('Failed to get workout details')),
+    deleteWorkout: vi.fn().mockRejectedValue(new Error('Failed to delete workout')),
+    unscheduleWorkout: vi.fn().mockRejectedValue(new Error('Failed to unschedule workout'))
   };
 
   return failingMock as unknown as GarminClient;

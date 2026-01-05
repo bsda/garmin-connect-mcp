@@ -417,6 +417,17 @@ export interface UnscheduleWorkoutParams {
   scheduleId: number;
 }
 
+/**
+ * Parameters for getWorkoutDetails tool
+ */
+export interface GetWorkoutDetailsParams {
+  /**
+   * The unique ID of the workout to retrieve details for
+   * (from create_running_workout or get_scheduled_workouts response)
+   */
+  workoutId: number;
+}
+
 // ============================================================================
 // Type Guards & Utilities
 // ============================================================================

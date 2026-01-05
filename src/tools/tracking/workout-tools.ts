@@ -30,7 +30,9 @@ import {
   GetScheduledWorkoutsParams,
   DeleteWorkoutParams,
   UnscheduleWorkoutParams,
+  GetWorkoutDetailsParams,
 } from '../../types/tool-params.js';
+import type { IWorkoutDetail } from '../../client/garmin-client.js';
 
 /**
  * Input schema types for MCP tool
@@ -876,6 +878,192 @@ export class WorkoutTools {
     }
 
     return 'An unknown error occurred while unscheduling the workout';
+  }
+
+  /**
+   * Get detailed information for a specific workout
+   *
+   * Retrieves the complete workout structure including segments, steps,
+   * targets, and duration information.
+   *
+   * @param params - Typed parameters for workout details retrieval
+   * @returns MCP tool response with workout details or error
+   */
+  async getWorkoutDetails(params: GetWorkoutDetailsParams): Promise<ToolResult> {
+    try {
+      // Validate input
+      const validated = this.validateGetDetailsInput(params);
+
+      // Get workout details
+      const detail = await this.garminClient.getWorkoutDetails(validated.workoutId);
+
+      // Format response for user-friendly output
+      const formattedSteps = this.formatWorkoutSteps(detail.workoutSegments);
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            success: true,
+            workoutId: detail.workoutId,
+            workoutName: detail.workoutName,
+            description: detail.description || 'No description',
+            sportType: detail.sportType?.sportTypeKey || 'unknown',
+            estimatedDuration: detail.estimatedDurationInSecs
+              ? `${Math.floor(detail.estimatedDurationInSecs / 60)} minutes`
+              : 'N/A',
+            estimatedDistance: detail.estimatedDistanceInMeters
+              ? `${(detail.estimatedDistanceInMeters / 1000).toFixed(2)} km`
+              : 'N/A',
+            createdDate: detail.createdDate,
+            updatedDate: detail.updateDate,
+            steps: formattedSteps,
+          }, null, 2)
+        }]
+      };
+
+    } catch (error) {
+      logger.error('Failed to get workout details:', error);
+
+      const errorMessage = this.transformGetDetailsError(error);
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            success: false,
+            error: errorMessage
+          }, null, 2)
+        }],
+        isError: true
+      };
+    }
+  }
+
+  /**
+   * Validate get workout details input arguments
+   */
+  private validateGetDetailsInput(args: unknown): { workoutId: number } {
+    const params = args as Record<string, unknown>;
+
+    if (!params.workoutId || typeof params.workoutId !== 'number' || params.workoutId <= 0) {
+      throw new Error('workoutId is required and must be a positive number');
+    }
+
+    return { workoutId: params.workoutId };
+  }
+
+  /**
+   * Format workout steps for user-friendly display
+   */
+  private formatWorkoutSteps(segments: IWorkoutDetail['workoutSegments']): unknown[] {
+    const formattedSteps: unknown[] = [];
+
+    for (const segment of segments) {
+      for (const step of segment.workoutSteps) {
+        const formattedStep: Record<string, unknown> = {
+          order: step.stepOrder,
+          type: step.stepType?.stepTypeKey || step.type,
+        };
+
+        // Format duration/end condition
+        if (step.endCondition) {
+          const conditionKey = step.endCondition.conditionTypeKey;
+          if (conditionKey === 'time' && step.endConditionValue) {
+            const minutes = Math.floor(step.endConditionValue / 60);
+            const seconds = step.endConditionValue % 60;
+            formattedStep.duration = seconds > 0
+              ? `${minutes}:${seconds.toString().padStart(2, '0')} minutes`
+              : `${minutes} minutes`;
+          } else if (conditionKey === 'distance' && step.endConditionValue) {
+            const km = step.endConditionValue / 1000;
+            formattedStep.distance = km >= 1
+              ? `${km.toFixed(2)} km`
+              : `${step.endConditionValue} m`;
+          } else if (conditionKey === 'lap.button') {
+            formattedStep.duration = 'Until lap button pressed';
+          } else if (conditionKey === 'iterations' && step.endConditionValue) {
+            formattedStep.repetitions = step.endConditionValue;
+          }
+        }
+
+        // Format target
+        if (step.targetType) {
+          const targetKey = step.targetType.workoutTargetTypeKey;
+          if (targetKey === 'no.target') {
+            formattedStep.target = 'Open/No target';
+          } else if (targetKey === 'heart.rate.zone' && step.zoneNumber) {
+            formattedStep.target = `HR Zone ${step.zoneNumber}`;
+          } else if (targetKey === 'pace.zone') {
+            if (step.targetValueOne && step.targetValueTwo) {
+              // Convert m/s to min/km
+              const minPace = 1000 / (step.targetValueTwo * 60);
+              const maxPace = 1000 / (step.targetValueOne * 60);
+              formattedStep.target = `Pace: ${this.formatPaceValue(minPace)} - ${this.formatPaceValue(maxPace)} min/km`;
+            } else if (step.zoneNumber) {
+              formattedStep.target = `Pace Zone ${step.zoneNumber}`;
+            }
+          } else if (targetKey === 'power.zone' && step.zoneNumber) {
+            formattedStep.target = `Power Zone ${step.zoneNumber}`;
+          }
+        }
+
+        // Handle repeat steps with child steps
+        if (step.type === 'RepeatGroupDTO' && step.numberOfIterations) {
+          formattedStep.type = 'repeat';
+          formattedStep.repetitions = step.numberOfIterations;
+          if (step.workoutSteps && Array.isArray(step.workoutSteps)) {
+            formattedStep.childSteps = this.formatWorkoutSteps([{
+              segmentOrder: 1,
+              sportType: segment.sportType,
+              workoutSteps: step.workoutSteps as IWorkoutDetail['workoutSegments'][0]['workoutSteps']
+            }]);
+          }
+        }
+
+        formattedSteps.push(formattedStep);
+      }
+    }
+
+    return formattedSteps;
+  }
+
+  /**
+   * Format pace value as MM:SS
+   */
+  private formatPaceValue(minPerKm: number): string {
+    const minutes = Math.floor(minPerKm);
+    const seconds = Math.round((minPerKm - minutes) * 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * Transform get workout details errors to user-friendly messages
+   */
+  private transformGetDetailsError(error: unknown): string {
+    if (error instanceof Error) {
+      const message = error.message;
+
+      if (message.includes('required') || message.includes('must be')) {
+        return `Validation error: ${message}`;
+      }
+
+      if (message.includes('not found') || message.includes('404')) {
+        return `Workout not found: The specified workout ID does not exist or has been deleted.`;
+      }
+
+      if (message.includes('authentication') || message.includes('login')) {
+        return `Authentication error: Unable to connect to Garmin Connect. Please check your credentials.`;
+      }
+
+      if (message.includes('server error') || message.includes('503')) {
+        return `Garmin service error: The Garmin Connect service is temporarily unavailable. Please try again later.`;
+      }
+
+      return message;
+    }
+
+    return 'An unknown error occurred while retrieving workout details';
   }
 
 }

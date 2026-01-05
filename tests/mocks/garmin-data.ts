@@ -244,13 +244,12 @@ export const mockWorkoutDetail = {
   sportType: {
     sportTypeId: 1,
     sportTypeKey: 'running',
+    displayOrder: 1,
   },
-  owner: {
-    userId: 987654321,
-    displayName: 'Test User',
-  },
+  estimatedDurationInSecs: 1800,
+  estimatedDistanceInMeters: 5000,
   createdDate: '2025-10-12T12:00:00.000Z',
-  updatedDate: '2025-10-12T12:00:00.000Z',
+  updateDate: '2025-10-12T12:00:00.000Z',
   workoutSegments: [
     {
       segmentOrder: 1,
@@ -260,8 +259,8 @@ export const mockWorkoutDetail = {
       },
       workoutSteps: [
         {
-          type: 'WorkoutStep',
-          stepId: null,
+          type: 'ExecutableStepDTO',
+          stepId: 1,
           stepOrder: 1,
           stepType: {
             stepTypeId: 1,
@@ -270,13 +269,57 @@ export const mockWorkoutDetail = {
           endCondition: {
             conditionTypeKey: 'time',
             conditionTypeId: 2,
-            value: 600,
           },
+          endConditionValue: 600,
           targetType: {
             workoutTargetTypeId: 1,
             workoutTargetTypeKey: 'no.target',
           },
-          secondaryTargetType: null,
+          targetValueOne: null,
+          targetValueTwo: null,
+          zoneNumber: null,
+        },
+        {
+          type: 'ExecutableStepDTO',
+          stepId: 2,
+          stepOrder: 2,
+          stepType: {
+            stepTypeId: 3,
+            stepTypeKey: 'interval',
+          },
+          endCondition: {
+            conditionTypeKey: 'distance',
+            conditionTypeId: 3,
+          },
+          endConditionValue: 1000,
+          targetType: {
+            workoutTargetTypeId: 4,
+            workoutTargetTypeKey: 'heart.rate.zone',
+          },
+          targetValueOne: null,
+          targetValueTwo: null,
+          zoneNumber: 3,
+        },
+        {
+          type: 'ExecutableStepDTO',
+          stepId: 3,
+          stepOrder: 3,
+          stepType: {
+            stepTypeId: 4,
+            stepTypeKey: 'cooldown',
+          },
+          endCondition: {
+            conditionTypeKey: 'lap.button',
+            conditionTypeId: 1,
+          },
+          endConditionValue: null,
+          targetType: {
+            workoutTargetTypeId: 1,
+            workoutTargetTypeKey: 'no.target',
+          },
+          targetValueOne: null,
+          targetValueTwo: null,
+          zoneNumber: null,
         },
       ],
     },

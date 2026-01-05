@@ -28,6 +28,7 @@ describe('WorkoutTools', () => {
       getScheduledWorkouts: vi.fn(),
       deleteWorkout: vi.fn(),
       unscheduleWorkout: vi.fn(),
+      getWorkoutDetails: vi.fn(),
     } as unknown as GarminClient;
 
     workoutTools = new WorkoutTools(mockGarminClient);
@@ -1733,6 +1734,324 @@ describe('WorkoutTools', () => {
       expect(mockGarminClient.scheduleWorkout).toHaveBeenCalledOnce();
       expect(mockGarminClient.unscheduleWorkout).toHaveBeenCalledOnce();
       expect(mockGarminClient.deleteWorkout).toHaveBeenCalledOnce();
+    });
+  });
+
+  // ============================================================================
+  // getWorkoutDetails Tests
+  // ============================================================================
+
+  describe('getWorkoutDetails - Input Validation', () => {
+    it('should reject missing workoutId', async () => {
+      const args = {};
+
+      const result = await workoutTools.getWorkoutDetails(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('workoutId is required');
+    });
+
+    it('should reject non-number workoutId', async () => {
+      const args = {
+        workoutId: 'invalid'
+      };
+
+      const result = await workoutTools.getWorkoutDetails(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('workoutId is required');
+    });
+
+    it('should reject negative workoutId', async () => {
+      const args = {
+        workoutId: -123
+      };
+
+      const result = await workoutTools.getWorkoutDetails(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('workoutId is required');
+    });
+
+    it('should reject zero workoutId', async () => {
+      const args = {
+        workoutId: 0
+      };
+
+      const result = await workoutTools.getWorkoutDetails(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('workoutId is required');
+    });
+  });
+
+  describe('getWorkoutDetails - Success Cases', () => {
+    it('should successfully retrieve workout details', async () => {
+      const mockResponse = {
+        workoutId: 123456789,
+        workoutName: 'Test Workout',
+        description: 'Test description',
+        sportType: { sportTypeId: 1, sportTypeKey: 'running' },
+        estimatedDurationInSecs: 1800,
+        estimatedDistanceInMeters: 5000,
+        createdDate: '2025-01-15T10:00:00.000Z',
+        updateDate: '2025-01-15T10:00:00.000Z',
+        workoutSegments: [{
+          segmentOrder: 1,
+          sportType: { sportTypeId: 1, sportTypeKey: 'running' },
+          workoutSteps: [{
+            type: 'ExecutableStepDTO',
+            stepId: 1,
+            stepOrder: 1,
+            stepType: { stepTypeId: 3, stepTypeKey: 'interval' },
+            endCondition: { conditionTypeId: 2, conditionTypeKey: 'time' },
+            endConditionValue: 600,
+            targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: 'no.target' },
+            targetValueOne: null,
+            targetValueTwo: null,
+            zoneNumber: null,
+          }]
+        }]
+      };
+
+      vi.mocked(mockGarminClient.getWorkoutDetails).mockResolvedValue(mockResponse);
+
+      const args = {
+        workoutId: 123456789
+      };
+
+      const result = await workoutTools.getWorkoutDetails(args);
+
+      expect(result.isError).toBeUndefined();
+      expect(mockGarminClient.getWorkoutDetails).toHaveBeenCalledOnce();
+      expect(mockGarminClient.getWorkoutDetails).toHaveBeenCalledWith(123456789);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.workoutId).toBe(123456789);
+      expect(response.workoutName).toBe('Test Workout');
+      expect(response.sportType).toBe('running');
+      expect(response.estimatedDuration).toBe('30 minutes');
+      expect(response.estimatedDistance).toBe('5.00 km');
+      expect(response.steps).toHaveLength(1);
+    });
+
+    it('should format time-based steps correctly', async () => {
+      const mockResponse = {
+        workoutId: 123,
+        workoutName: 'Time Workout',
+        sportType: { sportTypeId: 1, sportTypeKey: 'running' },
+        estimatedDurationInSecs: 600,
+        estimatedDistanceInMeters: null,
+        createdDate: '2025-01-15T10:00:00.000Z',
+        updateDate: '2025-01-15T10:00:00.000Z',
+        workoutSegments: [{
+          segmentOrder: 1,
+          sportType: { sportTypeId: 1, sportTypeKey: 'running' },
+          workoutSteps: [{
+            type: 'ExecutableStepDTO',
+            stepId: 1,
+            stepOrder: 1,
+            stepType: { stepTypeId: 1, stepTypeKey: 'warmup' },
+            endCondition: { conditionTypeId: 2, conditionTypeKey: 'time' },
+            endConditionValue: 600,
+            targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: 'no.target' },
+            targetValueOne: null,
+            targetValueTwo: null,
+            zoneNumber: null,
+          }]
+        }]
+      };
+
+      vi.mocked(mockGarminClient.getWorkoutDetails).mockResolvedValue(mockResponse);
+
+      const result = await workoutTools.getWorkoutDetails({ workoutId: 123 });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.steps[0].duration).toBe('10 minutes');
+      expect(response.steps[0].type).toBe('warmup');
+    });
+
+    it('should format distance-based steps correctly', async () => {
+      const mockResponse = {
+        workoutId: 123,
+        workoutName: 'Distance Workout',
+        sportType: { sportTypeId: 1, sportTypeKey: 'running' },
+        estimatedDurationInSecs: 0,
+        estimatedDistanceInMeters: 5000,
+        createdDate: '2025-01-15T10:00:00.000Z',
+        updateDate: '2025-01-15T10:00:00.000Z',
+        workoutSegments: [{
+          segmentOrder: 1,
+          sportType: { sportTypeId: 1, sportTypeKey: 'running' },
+          workoutSteps: [{
+            type: 'ExecutableStepDTO',
+            stepId: 1,
+            stepOrder: 1,
+            stepType: { stepTypeId: 3, stepTypeKey: 'interval' },
+            endCondition: { conditionTypeId: 3, conditionTypeKey: 'distance' },
+            endConditionValue: 1000,
+            targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: 'no.target' },
+            targetValueOne: null,
+            targetValueTwo: null,
+            zoneNumber: null,
+          }]
+        }]
+      };
+
+      vi.mocked(mockGarminClient.getWorkoutDetails).mockResolvedValue(mockResponse);
+
+      const result = await workoutTools.getWorkoutDetails({ workoutId: 123 });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.steps[0].distance).toBe('1.00 km');
+    });
+
+    it('should format HR zone targets correctly', async () => {
+      const mockResponse = {
+        workoutId: 123,
+        workoutName: 'HR Zone Workout',
+        sportType: { sportTypeId: 1, sportTypeKey: 'running' },
+        estimatedDurationInSecs: 1200,
+        estimatedDistanceInMeters: null,
+        createdDate: '2025-01-15T10:00:00.000Z',
+        updateDate: '2025-01-15T10:00:00.000Z',
+        workoutSegments: [{
+          segmentOrder: 1,
+          sportType: { sportTypeId: 1, sportTypeKey: 'running' },
+          workoutSteps: [{
+            type: 'ExecutableStepDTO',
+            stepId: 1,
+            stepOrder: 1,
+            stepType: { stepTypeId: 3, stepTypeKey: 'interval' },
+            endCondition: { conditionTypeId: 2, conditionTypeKey: 'time' },
+            endConditionValue: 1200,
+            targetType: { workoutTargetTypeId: 4, workoutTargetTypeKey: 'heart.rate.zone' },
+            targetValueOne: null,
+            targetValueTwo: null,
+            zoneNumber: 3,
+          }]
+        }]
+      };
+
+      vi.mocked(mockGarminClient.getWorkoutDetails).mockResolvedValue(mockResponse);
+
+      const result = await workoutTools.getWorkoutDetails({ workoutId: 123 });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.steps[0].target).toBe('HR Zone 3');
+    });
+
+    it('should format lap button duration correctly', async () => {
+      const mockResponse = {
+        workoutId: 123,
+        workoutName: 'Lap Button Workout',
+        sportType: { sportTypeId: 1, sportTypeKey: 'running' },
+        estimatedDurationInSecs: 0,
+        estimatedDistanceInMeters: null,
+        createdDate: '2025-01-15T10:00:00.000Z',
+        updateDate: '2025-01-15T10:00:00.000Z',
+        workoutSegments: [{
+          segmentOrder: 1,
+          sportType: { sportTypeId: 1, sportTypeKey: 'running' },
+          workoutSteps: [{
+            type: 'ExecutableStepDTO',
+            stepId: 1,
+            stepOrder: 1,
+            stepType: { stepTypeId: 4, stepTypeKey: 'cooldown' },
+            endCondition: { conditionTypeId: 1, conditionTypeKey: 'lap.button' },
+            endConditionValue: null,
+            targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: 'no.target' },
+            targetValueOne: null,
+            targetValueTwo: null,
+            zoneNumber: null,
+          }]
+        }]
+      };
+
+      vi.mocked(mockGarminClient.getWorkoutDetails).mockResolvedValue(mockResponse);
+
+      const result = await workoutTools.getWorkoutDetails({ workoutId: 123 });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.steps[0].duration).toBe('Until lap button pressed');
+    });
+  });
+
+  describe('getWorkoutDetails - API Error Handling', () => {
+    it('should handle workout not found errors', async () => {
+      vi.mocked(mockGarminClient.getWorkoutDetails).mockRejectedValue(
+        new Error('Workout not found: 123456789')
+      );
+
+      const args = {
+        workoutId: 123456789
+      };
+
+      const result = await workoutTools.getWorkoutDetails(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Workout not found');
+    });
+
+    it('should handle 404 not found error', async () => {
+      vi.mocked(mockGarminClient.getWorkoutDetails).mockRejectedValue(
+        new Error('404 not found')
+      );
+
+      const args = {
+        workoutId: 123456789
+      };
+
+      const result = await workoutTools.getWorkoutDetails(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Workout not found');
+    });
+
+    it('should handle authentication errors', async () => {
+      vi.mocked(mockGarminClient.getWorkoutDetails).mockRejectedValue(
+        new Error('authentication failed')
+      );
+
+      const args = {
+        workoutId: 123456789
+      };
+
+      const result = await workoutTools.getWorkoutDetails(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Authentication error');
+    });
+
+    it('should handle service unavailable errors', async () => {
+      vi.mocked(mockGarminClient.getWorkoutDetails).mockRejectedValue(
+        new Error('server error: 503')
+      );
+
+      const args = {
+        workoutId: 123456789
+      };
+
+      const result = await workoutTools.getWorkoutDetails(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Garmin service error');
+    });
+
+    it('should handle unknown errors', async () => {
+      vi.mocked(mockGarminClient.getWorkoutDetails).mockRejectedValue(
+        new Error('Something unexpected happened')
+      );
+
+      const args = {
+        workoutId: 123456789
+      };
+
+      const result = await workoutTools.getWorkoutDetails(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Something unexpected happened');
     });
   });
 });

@@ -473,6 +473,20 @@ class GarminConnectMCPServer {
               required: ["scheduleId"],
             },
           },
+          {
+            name: "get_workout_details",
+            description: "Get detailed information for a specific workout including steps, targets, and duration. Returns the complete workout structure with formatted step information.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                workoutId: {
+                  type: "number",
+                  description: "The workout ID to retrieve details for (from create_running_workout or get_scheduled_workouts response)",
+                },
+              },
+              required: ["workoutId"],
+            },
+          },
         ],
       };
     });
@@ -530,6 +544,10 @@ class GarminConnectMCPServer {
           case "unschedule_workout":
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             result = await this.workoutTools.unscheduleWorkout(request.params.arguments as any || {});
+            break;
+          case "get_workout_details":
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            result = await this.workoutTools.getWorkoutDetails(request.params.arguments as any || {});
             break;
           default:
             throw new Error(`Unknown tool: ${request.params.name}`);
