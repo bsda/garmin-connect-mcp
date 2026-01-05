@@ -1368,6 +1368,9 @@ export interface WorkoutScheduleResponse {
  * Contains workout metadata and schedule details
  */
 export interface ScheduledWorkout {
+  /** The schedule ID (calendar item 'id') - use this for unschedule_workout */
+  scheduleId: number;
+  /** @deprecated Use scheduleId instead */
   workoutScheduleId: number;
   workoutId: number;
   workoutName: string;

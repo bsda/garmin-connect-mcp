@@ -28,6 +28,8 @@ import {
   CreateRunningWorkoutParams,
   ScheduleWorkoutParams,
   GetScheduledWorkoutsParams,
+  DeleteWorkoutParams,
+  UnscheduleWorkoutParams,
 } from '../../types/tool-params.js';
 
 /**
@@ -702,6 +704,178 @@ export class WorkoutTools {
     }
 
     return 'An unknown error occurred while retrieving scheduled workouts';
+  }
+
+  /**
+   * Delete a workout from Garmin Connect library
+   *
+   * Permanently removes the workout from the library and all calendar dates.
+   * This operation cannot be undone.
+   *
+   * @param params - Typed parameters for workout deletion
+   * @returns MCP tool response with deletion confirmation or error
+   */
+  async deleteWorkout(params: DeleteWorkoutParams): Promise<ToolResult> {
+    try {
+      // Validate input
+      const validated = this.validateDeleteInput(params);
+
+      // Delete workout
+      const response = await this.garminClient.deleteWorkout(validated.workoutId);
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            success: true,
+            workoutId: validated.workoutId,
+            message: response.message,
+          }, null, 2)
+        }]
+      };
+
+    } catch (error) {
+      logger.error('Failed to delete workout:', error);
+
+      const errorMessage = this.transformDeleteError(error);
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            success: false,
+            error: errorMessage
+          }, null, 2)
+        }],
+        isError: true
+      };
+    }
+  }
+
+  /**
+   * Validate delete workout input arguments
+   */
+  private validateDeleteInput(args: any): { workoutId: number } {
+    if (!args.workoutId || typeof args.workoutId !== 'number' || args.workoutId <= 0) {
+      throw new Error('workoutId is required and must be a positive number');
+    }
+
+    return { workoutId: args.workoutId };
+  }
+
+  /**
+   * Transform delete errors to user-friendly messages
+   */
+  private transformDeleteError(error: unknown): string {
+    if (error instanceof Error) {
+      const message = error.message;
+
+      if (message.includes('required') || message.includes('must be')) {
+        return `Validation error: ${message}`;
+      }
+
+      if (message.includes('not found')) {
+        return `Workout not found: The specified workout ID does not exist or has already been deleted.`;
+      }
+
+      if (message.includes('authentication') || message.includes('login')) {
+        return `Authentication error: Unable to connect to Garmin Connect. Please check your credentials.`;
+      }
+
+      if (message.includes('server error') || message.includes('503')) {
+        return `Garmin service error: The Garmin Connect service is temporarily unavailable. Please try again later.`;
+      }
+
+      return message;
+    }
+
+    return 'An unknown error occurred while deleting the workout';
+  }
+
+  /**
+   * Remove a workout from Garmin Connect calendar
+   *
+   * Unschedules the workout from the calendar but keeps it in the library.
+   * The workout can be scheduled again later.
+   *
+   * @param params - Typed parameters for workout unscheduling
+   * @returns MCP tool response with unschedule confirmation or error
+   */
+  async unscheduleWorkout(params: UnscheduleWorkoutParams): Promise<ToolResult> {
+    try {
+      // Validate input
+      const validated = this.validateUnscheduleInput(params);
+
+      // Unschedule workout
+      const response = await this.garminClient.unscheduleWorkout(validated.scheduleId);
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            success: true,
+            scheduleId: validated.scheduleId,
+            message: response.message,
+          }, null, 2)
+        }]
+      };
+
+    } catch (error) {
+      logger.error('Failed to unschedule workout:', error);
+
+      const errorMessage = this.transformUnscheduleError(error);
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            success: false,
+            error: errorMessage
+          }, null, 2)
+        }],
+        isError: true
+      };
+    }
+  }
+
+  /**
+   * Validate unschedule workout input arguments
+   */
+  private validateUnscheduleInput(args: any): { scheduleId: number } {
+    if (!args.scheduleId || typeof args.scheduleId !== 'number' || args.scheduleId <= 0) {
+      throw new Error('scheduleId is required and must be a positive number');
+    }
+
+    return { scheduleId: args.scheduleId };
+  }
+
+  /**
+   * Transform unschedule errors to user-friendly messages
+   */
+  private transformUnscheduleError(error: unknown): string {
+    if (error instanceof Error) {
+      const message = error.message;
+
+      if (message.includes('required') || message.includes('must be')) {
+        return `Validation error: ${message}`;
+      }
+
+      if (message.includes('not found')) {
+        return `Schedule not found: The specified schedule ID does not exist or the workout has already been unscheduled.`;
+      }
+
+      if (message.includes('authentication') || message.includes('login')) {
+        return `Authentication error: Unable to connect to Garmin Connect. Please check your credentials.`;
+      }
+
+      if (message.includes('server error') || message.includes('503')) {
+        return `Garmin service error: The Garmin Connect service is temporarily unavailable. Please try again later.`;
+      }
+
+      return message;
+    }
+
+    return 'An unknown error occurred while unscheduling the workout';
   }
 
 }

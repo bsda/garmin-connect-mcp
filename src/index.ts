@@ -428,7 +428,7 @@ class GarminConnectMCPServer {
           },
           {
             name: "get_scheduled_workouts",
-            description: "Get scheduled workouts from Garmin Connect calendar for a date range. Defaults to the current week (Monday to Sunday) if dates not provided. Returns list of scheduled workouts with details.",
+            description: "Get scheduled workouts from Garmin Connect calendar for a date range. Defaults to the current week (Monday to Sunday) if dates not provided. Returns list of scheduled workouts with details including scheduleId for unscheduling.",
             inputSchema: {
               type: "object",
               properties: {
@@ -443,6 +443,34 @@ class GarminConnectMCPServer {
                   pattern: "^\\d{4}-\\d{2}-\\d{2}$",
                 },
               },
+            },
+          },
+          {
+            name: "delete_workout",
+            description: "Permanently delete a workout from Garmin Connect library. This also removes the workout from all calendar dates where it was scheduled. This operation cannot be undone.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                workoutId: {
+                  type: "number",
+                  description: "The workout ID to delete (from create_running_workout or get_scheduled_workouts response)",
+                },
+              },
+              required: ["workoutId"],
+            },
+          },
+          {
+            name: "unschedule_workout",
+            description: "Remove a workout from Garmin Connect calendar. The workout remains in your library for future scheduling. Use the scheduleId from get_scheduled_workouts response.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                scheduleId: {
+                  type: "number",
+                  description: "The schedule ID (from get_scheduled_workouts 'scheduleId' field)",
+                },
+              },
+              required: ["scheduleId"],
             },
           },
         ],
@@ -494,6 +522,14 @@ class GarminConnectMCPServer {
             break;
           case "get_scheduled_workouts":
             result = await this.workoutTools.getScheduledWorkouts(request.params.arguments || {});
+            break;
+          case "delete_workout":
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            result = await this.workoutTools.deleteWorkout(request.params.arguments as any || {});
+            break;
+          case "unschedule_workout":
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            result = await this.workoutTools.unscheduleWorkout(request.params.arguments as any || {});
             break;
           default:
             throw new Error(`Unknown tool: ${request.params.name}`);

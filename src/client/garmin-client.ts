@@ -1,6 +1,6 @@
 import GarminConnectLib from "garmin-connect";
 import { GarminClientConfig, DailyStepsData } from '../types/garmin-types.js';
-import type { WorkoutPayload, WorkoutResponse, WorkoutScheduleResponse, ScheduledWorkout, SportType } from '../types/workout.js';
+import type { WorkoutPayload, WorkoutResponse, WorkoutScheduleResponse, ScheduledWorkout, SportType, DeleteResponse } from '../types/workout.js';
 import { SPORT_TYPE_MAPPING } from '../types/workout.js';
 import { DebugLogger } from '../utils/debug-logger.js';
 
@@ -8,6 +8,8 @@ const GarminConnect = GarminConnectLib.GarminConnect;
 
 // Calendar item from Garmin API response
 interface ICalendarItem {
+  /** The calendar item ID - use this for unschedule operations */
+  id: number;
   itemType: string;
   workoutId?: number;
   date: string;
@@ -31,8 +33,10 @@ interface ICalendarItem {
 interface ExtendedGarminClient {
   client: {
     get: (url: string) => Promise<unknown>;
+    delete: <T>(url: string) => Promise<T>;
   };
   addWorkout: (payload: WorkoutPayload) => Promise<unknown>;
+  deleteWorkout: (workout: { workoutId: string }) => Promise<unknown>;
   getUserProfile: () => Promise<{ profileId: number }>;
   post: (url: string, data: unknown) => Promise<unknown>;
 }
@@ -533,7 +537,8 @@ export class GarminClient {
             }
 
             return {
-              workoutScheduleId: workout.workoutScheduleId || 0,
+              scheduleId: workout.id,
+              workoutScheduleId: workout.workoutScheduleId || workout.id || 0,
               workoutId: workout.workout?.workoutId || workout.workoutId || 0,
               workoutName: workout.workout?.workoutName || 'Unnamed Workout',
               calendarDate: workout.date,
@@ -552,6 +557,110 @@ export class GarminClient {
       }
 
       return allWorkouts;
+    });
+  }
+
+  /**
+   * Deletes a workout from the Garmin Connect workout library
+   *
+   * This is a permanent, destructive operation. The workout will be removed
+   * from the library AND from all calendar dates where it was scheduled.
+   *
+   * @param workoutId - The ID of the workout to delete
+   * @returns Success confirmation
+   * @throws Error if deletion fails or workout not found
+   *
+   * @example
+   * ```typescript
+   * await client.deleteWorkout(1354294595);
+   * console.log('Workout deleted');
+   * ```
+   */
+  async deleteWorkout(workoutId: number): Promise<DeleteResponse> {
+    return await this.retryWithReauth(async () => {
+      const client = await this.initialize();
+
+      try {
+        // Use the built-in deleteWorkout method from garmin-connect library
+        await (client as unknown as ExtendedGarminClient).deleteWorkout({
+          workoutId: String(workoutId)
+        });
+
+        return {
+          success: true,
+          message: `Workout ${workoutId} deleted successfully`
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (errorMessage.includes('404')) {
+          throw new Error(`Workout not found: ${workoutId}`);
+        }
+        if (errorMessage.includes('400')) {
+          throw new Error(`Bad request: Invalid workout ID. ${errorMessage}`);
+        }
+        if (errorMessage.includes('401') || errorMessage.includes('403')) {
+          throw error; // Let retryWithReauth handle
+        }
+        if (errorMessage.includes('500')) {
+          throw new Error(`Garmin server error: ${errorMessage}`);
+        }
+
+        throw new Error(`Failed to delete workout: ${errorMessage}`);
+      }
+    });
+  }
+
+  /**
+   * Removes a scheduled workout from the Garmin Connect calendar
+   *
+   * This operation only removes the workout from the calendar.
+   * The workout itself remains in your library and can be scheduled again.
+   *
+   * @param scheduleId - The schedule ID (calendar item 'id' from getScheduledWorkouts)
+   * @returns Success confirmation
+   * @throws Error if unscheduling fails or schedule not found
+   *
+   * @example
+   * ```typescript
+   * // Get scheduled workouts first
+   * const workouts = await client.getScheduledWorkouts(startDate, endDate);
+   * // Use the scheduleId to unschedule
+   * await client.unscheduleWorkout(workouts[0].scheduleId);
+   * ```
+   */
+  async unscheduleWorkout(scheduleId: number): Promise<DeleteResponse> {
+    return await this.retryWithReauth(async () => {
+      const client = await this.initialize();
+
+      try {
+        // Use direct API call to delete the schedule
+        await (client as unknown as ExtendedGarminClient).client.delete(
+          `https://connectapi.garmin.com/workout-service/schedule/${scheduleId}`
+        );
+
+        return {
+          success: true,
+          message: `Schedule ${scheduleId} removed from calendar`
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (errorMessage.includes('404')) {
+          throw new Error(`Schedule not found: ${scheduleId}. It may have already been removed.`);
+        }
+        if (errorMessage.includes('400')) {
+          throw new Error(`Bad request: Invalid schedule ID. ${errorMessage}`);
+        }
+        if (errorMessage.includes('401') || errorMessage.includes('403')) {
+          throw error; // Let retryWithReauth handle
+        }
+        if (errorMessage.includes('500')) {
+          throw new Error(`Garmin server error: ${errorMessage}`);
+        }
+
+        throw new Error(`Failed to unschedule workout: ${errorMessage}`);
+      }
     });
   }
 }

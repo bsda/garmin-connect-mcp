@@ -395,6 +395,28 @@ export interface GetScheduledWorkoutsParams {
   endDate?: string;
 }
 
+/**
+ * Parameters for deleteWorkout tool
+ */
+export interface DeleteWorkoutParams {
+  /**
+   * The workout ID to delete (from create_running_workout response)
+   * This permanently removes the workout from your library and all calendar dates
+   */
+  workoutId: number;
+}
+
+/**
+ * Parameters for unscheduleWorkout tool
+ */
+export interface UnscheduleWorkoutParams {
+  /**
+   * The schedule ID (from get_scheduled_workouts 'scheduleId' field)
+   * This removes the workout from the calendar but keeps it in your library
+   */
+  scheduleId: number;
+}
+
 // ============================================================================
 // Type Guards & Utilities
 // ============================================================================

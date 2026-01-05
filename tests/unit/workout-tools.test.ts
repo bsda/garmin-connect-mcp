@@ -26,6 +26,8 @@ describe('WorkoutTools', () => {
       createWorkout: vi.fn(),
       scheduleWorkout: vi.fn(),
       getScheduledWorkouts: vi.fn(),
+      deleteWorkout: vi.fn(),
+      unscheduleWorkout: vi.fn(),
     } as unknown as GarminClient;
 
     workoutTools = new WorkoutTools(mockGarminClient);
@@ -1309,6 +1311,428 @@ describe('WorkoutTools', () => {
       // Verify format
       expect(response.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(response.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+  });
+
+  // ============================================================================
+  // deleteWorkout Tests
+  // ============================================================================
+
+  describe('deleteWorkout - Input Validation', () => {
+    it('should reject missing workoutId', async () => {
+      const args = {};
+
+      const result = await workoutTools.deleteWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('workoutId is required');
+    });
+
+    it('should reject non-number workoutId', async () => {
+      const args = {
+        workoutId: 'invalid'
+      };
+
+      const result = await workoutTools.deleteWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('workoutId is required');
+    });
+
+    it('should reject negative workoutId', async () => {
+      const args = {
+        workoutId: -123
+      };
+
+      const result = await workoutTools.deleteWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('workoutId is required');
+    });
+
+    it('should reject zero workoutId', async () => {
+      const args = {
+        workoutId: 0
+      };
+
+      const result = await workoutTools.deleteWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('workoutId is required');
+    });
+  });
+
+  describe('deleteWorkout - Success Cases', () => {
+    it('should successfully delete a workout', async () => {
+      const mockResponse = {
+        success: true,
+        message: 'Workout deleted successfully'
+      };
+
+      vi.mocked(mockGarminClient.deleteWorkout).mockResolvedValue(mockResponse);
+
+      const args = {
+        workoutId: 123456789
+      };
+
+      const result = await workoutTools.deleteWorkout(args);
+
+      expect(result.isError).toBeUndefined();
+      expect(mockGarminClient.deleteWorkout).toHaveBeenCalledOnce();
+      expect(mockGarminClient.deleteWorkout).toHaveBeenCalledWith(123456789);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.workoutId).toBe(123456789);
+      expect(response.message).toContain('deleted');
+    });
+
+    it('should pass correct workoutId to client', async () => {
+      const mockResponse = {
+        success: true,
+        message: 'Workout deleted successfully'
+      };
+
+      vi.mocked(mockGarminClient.deleteWorkout).mockResolvedValue(mockResponse);
+
+      const workoutId = 987654321;
+      await workoutTools.deleteWorkout({ workoutId });
+
+      expect(mockGarminClient.deleteWorkout).toHaveBeenCalledWith(workoutId);
+    });
+  });
+
+  describe('deleteWorkout - API Error Handling', () => {
+    it('should handle workout not found errors', async () => {
+      vi.mocked(mockGarminClient.deleteWorkout).mockRejectedValue(
+        new Error('Workout not found: 123456789')
+      );
+
+      const args = {
+        workoutId: 123456789
+      };
+
+      const result = await workoutTools.deleteWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Workout not found');
+    });
+
+    it('should handle 404 not found error', async () => {
+      vi.mocked(mockGarminClient.deleteWorkout).mockRejectedValue(
+        new Error('404 not found')
+      );
+
+      const args = {
+        workoutId: 123456789
+      };
+
+      const result = await workoutTools.deleteWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Workout not found');
+    });
+
+    it('should handle authentication errors', async () => {
+      vi.mocked(mockGarminClient.deleteWorkout).mockRejectedValue(
+        new Error('authentication failed')
+      );
+
+      const args = {
+        workoutId: 123456789
+      };
+
+      const result = await workoutTools.deleteWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Authentication error');
+    });
+
+    it('should handle service unavailable errors', async () => {
+      vi.mocked(mockGarminClient.deleteWorkout).mockRejectedValue(
+        new Error('server error: 503')
+      );
+
+      const args = {
+        workoutId: 123456789
+      };
+
+      const result = await workoutTools.deleteWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Garmin service error');
+    });
+
+    it('should handle unknown errors', async () => {
+      vi.mocked(mockGarminClient.deleteWorkout).mockRejectedValue(
+        new Error('Something unexpected happened')
+      );
+
+      const args = {
+        workoutId: 123456789
+      };
+
+      const result = await workoutTools.deleteWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Something unexpected happened');
+    });
+  });
+
+  // ============================================================================
+  // unscheduleWorkout Tests
+  // ============================================================================
+
+  describe('unscheduleWorkout - Input Validation', () => {
+    it('should reject missing scheduleId', async () => {
+      const args = {};
+
+      const result = await workoutTools.unscheduleWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('scheduleId is required');
+    });
+
+    it('should reject non-number scheduleId', async () => {
+      const args = {
+        scheduleId: 'invalid'
+      };
+
+      const result = await workoutTools.unscheduleWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('scheduleId is required');
+    });
+
+    it('should reject negative scheduleId', async () => {
+      const args = {
+        scheduleId: -123
+      };
+
+      const result = await workoutTools.unscheduleWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('scheduleId is required');
+    });
+
+    it('should reject zero scheduleId', async () => {
+      const args = {
+        scheduleId: 0
+      };
+
+      const result = await workoutTools.unscheduleWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('scheduleId is required');
+    });
+  });
+
+  describe('unscheduleWorkout - Success Cases', () => {
+    it('should successfully unschedule a workout', async () => {
+      const mockResponse = {
+        success: true,
+        message: 'Workout unscheduled successfully'
+      };
+
+      vi.mocked(mockGarminClient.unscheduleWorkout).mockResolvedValue(mockResponse);
+
+      const args = {
+        scheduleId: 1234567890123
+      };
+
+      const result = await workoutTools.unscheduleWorkout(args);
+
+      expect(result.isError).toBeUndefined();
+      expect(mockGarminClient.unscheduleWorkout).toHaveBeenCalledOnce();
+      expect(mockGarminClient.unscheduleWorkout).toHaveBeenCalledWith(1234567890123);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.success).toBe(true);
+      expect(response.scheduleId).toBe(1234567890123);
+      expect(response.message).toContain('unscheduled');
+    });
+
+    it('should pass correct scheduleId to client', async () => {
+      const mockResponse = {
+        success: true,
+        message: 'Workout unscheduled successfully'
+      };
+
+      vi.mocked(mockGarminClient.unscheduleWorkout).mockResolvedValue(mockResponse);
+
+      const scheduleId = 9876543210987;
+      await workoutTools.unscheduleWorkout({ scheduleId });
+
+      expect(mockGarminClient.unscheduleWorkout).toHaveBeenCalledWith(scheduleId);
+    });
+  });
+
+  describe('unscheduleWorkout - API Error Handling', () => {
+    it('should handle schedule not found errors', async () => {
+      vi.mocked(mockGarminClient.unscheduleWorkout).mockRejectedValue(
+        new Error('Schedule not found: 1234567890123')
+      );
+
+      const args = {
+        scheduleId: 1234567890123
+      };
+
+      const result = await workoutTools.unscheduleWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Schedule not found');
+    });
+
+    it('should handle 404 not found error', async () => {
+      vi.mocked(mockGarminClient.unscheduleWorkout).mockRejectedValue(
+        new Error('404 not found')
+      );
+
+      const args = {
+        scheduleId: 1234567890123
+      };
+
+      const result = await workoutTools.unscheduleWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Schedule not found');
+    });
+
+    it('should handle authentication errors', async () => {
+      vi.mocked(mockGarminClient.unscheduleWorkout).mockRejectedValue(
+        new Error('authentication failed')
+      );
+
+      const args = {
+        scheduleId: 1234567890123
+      };
+
+      const result = await workoutTools.unscheduleWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Authentication error');
+    });
+
+    it('should handle service unavailable errors', async () => {
+      vi.mocked(mockGarminClient.unscheduleWorkout).mockRejectedValue(
+        new Error('server error: 503')
+      );
+
+      const args = {
+        scheduleId: 1234567890123
+      };
+
+      const result = await workoutTools.unscheduleWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Garmin service error');
+    });
+
+    it('should handle unknown errors', async () => {
+      vi.mocked(mockGarminClient.unscheduleWorkout).mockRejectedValue(
+        new Error('Something unexpected happened')
+      );
+
+      const args = {
+        scheduleId: 1234567890123
+      };
+
+      const result = await workoutTools.unscheduleWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Something unexpected happened');
+    });
+
+    it('should handle already unscheduled workout', async () => {
+      vi.mocked(mockGarminClient.unscheduleWorkout).mockRejectedValue(
+        new Error('Workout not found on calendar')
+      );
+
+      const args = {
+        scheduleId: 1234567890123
+      };
+
+      const result = await workoutTools.unscheduleWorkout(args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Schedule not found');
+    });
+  });
+
+  // ============================================================================
+  // Integration Tests - Delete and Unschedule workflow
+  // ============================================================================
+
+  describe('Workflow Integration - Schedule, Unschedule, Delete', () => {
+    it('should work alongside createWorkout and scheduleWorkout', async () => {
+      const createMockResponse = {
+        workoutId: 123456789,
+        ownerId: 456,
+        workoutName: 'Test Workout',
+        description: null,
+        updatedDate: '2025-10-12T12:00:00Z',
+        createdDate: '2025-10-12T12:00:00Z',
+        sportType: { sportTypeId: 1, sportTypeKey: 'running', displayOrder: 1 }
+      };
+
+      const scheduleMockResponse = {
+        workoutScheduleId: 1234567890123,
+        workoutId: 123456789,
+        calendarDate: '2025-10-13',
+        success: true,
+        message: 'Workout scheduled successfully for 2025-10-13',
+      };
+
+      const unscheduleMockResponse = {
+        success: true,
+        message: 'Workout unscheduled successfully'
+      };
+
+      const deleteMockResponse = {
+        success: true,
+        message: 'Workout deleted successfully'
+      };
+
+      vi.mocked(mockGarminClient.createWorkout).mockResolvedValue(createMockResponse);
+      vi.mocked(mockGarminClient.scheduleWorkout).mockResolvedValue(scheduleMockResponse);
+      vi.mocked(mockGarminClient.unscheduleWorkout).mockResolvedValue(unscheduleMockResponse);
+      vi.mocked(mockGarminClient.deleteWorkout).mockResolvedValue(deleteMockResponse);
+
+      // Step 1: Create a workout
+      const createResult = await workoutTools.createRunningWorkout({
+        name: 'Test Workout',
+        steps: [{ type: 'interval', duration: { type: 'time', value: 1800 } }]
+      });
+      const createResponse = JSON.parse(createResult.content[0].text);
+      expect(createResponse.success).toBe(true);
+
+      // Step 2: Schedule it
+      const scheduleResult = await workoutTools.scheduleWorkout({
+        workoutId: createResponse.workoutId,
+        date: '2025-10-13'
+      });
+      const scheduleResponse = JSON.parse(scheduleResult.content[0].text);
+      expect(scheduleResponse.success).toBe(true);
+
+      // Step 3: Unschedule it
+      const unscheduleResult = await workoutTools.unscheduleWorkout({
+        scheduleId: scheduleResponse.workoutScheduleId
+      });
+      const unscheduleResponse = JSON.parse(unscheduleResult.content[0].text);
+      expect(unscheduleResponse.success).toBe(true);
+
+      // Step 4: Delete it
+      const deleteResult = await workoutTools.deleteWorkout({
+        workoutId: createResponse.workoutId
+      });
+      const deleteResponse = JSON.parse(deleteResult.content[0].text);
+      expect(deleteResponse.success).toBe(true);
+
+      // Verify all methods were called
+      expect(mockGarminClient.createWorkout).toHaveBeenCalledOnce();
+      expect(mockGarminClient.scheduleWorkout).toHaveBeenCalledOnce();
+      expect(mockGarminClient.unscheduleWorkout).toHaveBeenCalledOnce();
+      expect(mockGarminClient.deleteWorkout).toHaveBeenCalledOnce();
     });
   });
 });
