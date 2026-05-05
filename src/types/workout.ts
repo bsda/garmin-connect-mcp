@@ -38,6 +38,19 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+/**
+ * Sport type IDs verified empirically against Garmin's workout-service API
+ * (probed by creating workouts and reading back the sportTypeKey Garmin assigns).
+ * See docs/SPORT_TYPE_DISCOVERY.md for full discovery methodology.
+ *
+ * Valid IDs: 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13.
+ * ID 10 is rejected by the API. IDs 14+ are silently stripped (broken).
+ *
+ * No dedicated `hiking` or `strength_training` workout sportTypes exist as of 2026-05.
+ * Garmin's Training API docs reference HikingWorkout but the public workout-service
+ * does not expose a corresponding ID. Use `walking` (12) or `rucking` (13) for
+ * hike-style sessions; `hiit` (9) or `cardio_training` (6) for circuit-style strength.
+ */
 export const SPORT_TYPE_MAPPING = {
   running: {
     sportTypeId: 1,
@@ -49,15 +62,55 @@ export const SPORT_TYPE_MAPPING = {
     sportTypeKey: 'cycling',
     displayOrder: 2,
   },
+  other: {
+    sportTypeId: 3,
+    sportTypeKey: 'other',
+    displayOrder: 3,
+  },
   swimming: {
+    sportTypeId: 4,
+    sportTypeKey: 'swimming',
+    displayOrder: 4,
+  },
+  lap_swimming: {
     sportTypeId: 5,
     sportTypeKey: 'lap_swimming',
     displayOrder: 5,
   },
-  other: {
-    sportTypeId: 4,
-    sportTypeKey: 'other',
-    displayOrder: 4,
+  cardio_training: {
+    sportTypeId: 6,
+    sportTypeKey: 'cardio_training',
+    displayOrder: 6,
+  },
+  yoga: {
+    sportTypeId: 7,
+    sportTypeKey: 'yoga',
+    displayOrder: 7,
+  },
+  pilates: {
+    sportTypeId: 8,
+    sportTypeKey: 'pilates',
+    displayOrder: 8,
+  },
+  hiit: {
+    sportTypeId: 9,
+    sportTypeKey: 'hiit',
+    displayOrder: 9,
+  },
+  mobility: {
+    sportTypeId: 11,
+    sportTypeKey: 'mobility',
+    displayOrder: 11,
+  },
+  walking: {
+    sportTypeId: 12,
+    sportTypeKey: 'walking',
+    displayOrder: 12,
+  },
+  rucking: {
+    sportTypeId: 13,
+    sportTypeKey: 'rucking',
+    displayOrder: 13,
   },
 } as const;
 

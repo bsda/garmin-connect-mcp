@@ -21,7 +21,7 @@
 
 import { GarminClient } from '../../client/garmin-client.js';
 import { WorkoutBuilder, EndConditionFactory, TargetFactory } from '../../services/workoutBuilder.js';
-import type { EndConditionData, Target, DistanceUnitName } from '../../types/workout.js';
+import type { EndConditionData, Target, DistanceUnitName, SportTypeName } from '../../types/workout.js';
 import { ToolResult } from '../../types/garmin-types.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -85,12 +85,65 @@ export class WorkoutTools {
    * @returns MCP tool response with workout ID or error
    */
   async createRunningWorkout(params: CreateRunningWorkoutParams): Promise<ToolResult> {
+    return this.createWorkoutForSport('running', params);
+  }
+
+  /**
+   * Create a rucking workout in Garmin Connect (sportTypeId 13).
+   * Use for weighted-pack hikes, hill power-hikes with load, military-style rucks.
+   * Activity logs as Rucking when started in Hike/Rucking mode on the watch.
+   *
+   * NOTE: some Garmin watches (e.g., Forerunner 965) have a firmware filter that
+   * rejects rucking-typed workouts as incompatible even though the watch has
+   * a Hike profile. See docs/SPORT_TYPE_DISCOVERY.md for the workaround.
+   */
+  async createRuckingWorkout(params: CreateRunningWorkoutParams): Promise<ToolResult> {
+    return this.createWorkoutForSport('rucking', params);
+  }
+
+  /**
+   * Create a walking workout in Garmin Connect (sportTypeId 12).
+   * Use for hike-style sessions (Garmin has no dedicated hiking sportType for workouts),
+   * power-hikes, walks, dog walks. The closest available match for hiking.
+   *
+   * NOTE: some Garmin watches (e.g., Forerunner 965) have a firmware filter that
+   * rejects walking-typed workouts as incompatible. See docs/SPORT_TYPE_DISCOVERY.md.
+   */
+  async createWalkingWorkout(params: CreateRunningWorkoutParams): Promise<ToolResult> {
+    return this.createWorkoutForSport('walking', params);
+  }
+
+  /**
+   * Create a cycling workout in Garmin Connect.
+   * Use for road, gravel, MTB, indoor trainer rides.
+   */
+  async createCyclingWorkout(params: CreateRunningWorkoutParams): Promise<ToolResult> {
+    return this.createWorkoutForSport('cycling', params);
+  }
+
+  /**
+   * Create a generic "other" workout in Garmin Connect.
+   * Use for activities without a dedicated workout sportType (yoga, mobility, calisthenics circuits).
+   * Activity logs by whatever sport profile is selected on the watch when started.
+   */
+  async createOtherWorkout(params: CreateRunningWorkoutParams): Promise<ToolResult> {
+    return this.createWorkoutForSport('other', params);
+  }
+
+  /**
+   * Internal helper that builds and uploads a workout for any supported sport type.
+   * Shared by createRunningWorkout, createHikeWorkout, createCyclingWorkout, createStrengthWorkout.
+   */
+  private async createWorkoutForSport(
+    sport: SportTypeName,
+    params: CreateRunningWorkoutParams
+  ): Promise<ToolResult> {
     try {
       // Task 3: Input Validation
       const validated = this.validateInput(params);
 
       // Task 4: Build Workout
-      const builder = new WorkoutBuilder(validated.name, 'running');
+      const builder = new WorkoutBuilder(validated.name, sport);
 
       if (validated.description) {
         builder.setDescription(validated.description);
@@ -112,14 +165,15 @@ export class WorkoutTools {
             success: true,
             workoutId: response.workoutId,
             workoutName: response.workoutName,
-            message: `Successfully created workout "${response.workoutName}"`,
+            sportType: sport,
+            message: `Successfully created ${sport} workout "${response.workoutName}"`,
             createdDate: response.createdDate,
           }, null, 2)
         }]
       };
 
     } catch (error) {
-      logger.error('Failed to create running workout:', error);
+      logger.error(`Failed to create ${sport} workout:`, error);
 
       // Transform error to user-friendly message
       const errorMessage = this.transformError(error);

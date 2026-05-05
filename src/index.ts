@@ -408,6 +408,277 @@ class GarminConnectMCPServer {
             },
           },
           {
+            name: "create_rucking_workout",
+            description: "Create a structured RUCKING workout in Garmin Connect (Garmin sportType 'rucking', sportTypeId 13). Use for weighted-pack hikes, military-style rucks, weighted hill training. Same step structure as create_running_workout: warmup, intervals, recovery, cooldown, repeat blocks; time/distance/lap_button durations; pace/HR-zone/no-target intensity. Start activity on watch in Rucking mode for correct activity-type logging.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                name: {
+                  type: "string",
+                  description: "Workout name (required)",
+                  minLength: 1,
+                },
+                description: {
+                  type: "string",
+                  description: "Optional workout description",
+                },
+                steps: {
+                  type: "array",
+                  description: "Array of workout steps (required, at least one step)",
+                  minItems: 1,
+                  items: {
+                    type: "object",
+                    properties: {
+                      type: {
+                        type: "string",
+                        description: "Step type",
+                        enum: ["warmup", "interval", "recovery", "cooldown", "rest", "repeat"],
+                      },
+                      duration: {
+                        type: "object",
+                        description: "Duration of the step (not required for repeat blocks)",
+                        properties: {
+                          type: {
+                            type: "string",
+                            description: "Duration type",
+                            enum: ["time", "distance", "lap_button"],
+                          },
+                          value: {
+                            type: "number",
+                            description: "Duration value (seconds for time, meters for distance). Not required for lap_button.",
+                          },
+                          unit: {
+                            type: "string",
+                            description: "Distance unit (required for distance type)",
+                            enum: ["m", "km", "mile"],
+                          },
+                        },
+                        required: ["type"],
+                      },
+                      target: {
+                        type: "object",
+                        description: "Intensity target (optional)",
+                        properties: {
+                          type: {
+                            type: "string",
+                            description: "Target type",
+                            enum: ["pace", "hr_zone", "no_target"],
+                          },
+                          minValue: {
+                            type: "number",
+                            description: "Minimum pace in min/km (required for pace target)",
+                          },
+                          maxValue: {
+                            type: "number",
+                            description: "Maximum pace in min/km (required for pace target)",
+                          },
+                          zone: {
+                            type: "number",
+                            description: "HR zone number 1-5 (required for hr_zone target)",
+                          },
+                        },
+                        required: ["type"],
+                      },
+                      numberOfRepetitions: {
+                        type: "number",
+                        description: "Number of repetitions (required for repeat type)",
+                        minimum: 1,
+                      },
+                      childSteps: {
+                        type: "array",
+                        description: "Child steps to repeat (required for repeat type)",
+                        items: {
+                          type: "object",
+                        },
+                      },
+                    },
+                    required: ["type"],
+                  },
+                },
+              },
+              required: ["name", "steps"],
+            },
+          },
+          {
+            name: "create_cycling_workout",
+            description: "Create a structured CYCLING workout in Garmin Connect. Use for road, gravel, MTB, or indoor trainer rides. Same step structure as create_running_workout. Pace targets are still in min/km if used (Garmin will convert internally), but HR zones and no_target are usually more meaningful for cycling.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                name: {
+                  type: "string",
+                  description: "Workout name (required)",
+                  minLength: 1,
+                },
+                description: {
+                  type: "string",
+                  description: "Optional workout description",
+                },
+                steps: {
+                  type: "array",
+                  description: "Array of workout steps (required, at least one step)",
+                  minItems: 1,
+                  items: {
+                    type: "object",
+                    properties: {
+                      type: {
+                        type: "string",
+                        enum: ["warmup", "interval", "recovery", "cooldown", "rest", "repeat"],
+                      },
+                      duration: {
+                        type: "object",
+                        properties: {
+                          type: {
+                            type: "string",
+                            enum: ["time", "distance", "lap_button"],
+                          },
+                          value: { type: "number" },
+                          unit: {
+                            type: "string",
+                            enum: ["m", "km", "mile"],
+                          },
+                        },
+                        required: ["type"],
+                      },
+                      target: {
+                        type: "object",
+                        properties: {
+                          type: {
+                            type: "string",
+                            enum: ["pace", "hr_zone", "no_target"],
+                          },
+                          minValue: { type: "number" },
+                          maxValue: { type: "number" },
+                          zone: { type: "number" },
+                        },
+                        required: ["type"],
+                      },
+                      numberOfRepetitions: { type: "number", minimum: 1 },
+                      childSteps: {
+                        type: "array",
+                        items: { type: "object" },
+                      },
+                    },
+                    required: ["type"],
+                  },
+                },
+              },
+              required: ["name", "steps"],
+            },
+          },
+          {
+            name: "create_walking_workout",
+            description: "Create a structured WALKING workout in Garmin Connect (Garmin sportType 'walking', sportTypeId 12). Closest available match for hiking — Garmin has no dedicated hiking workout sportType. Use for hike-style sessions, walks, dog walks. NOTE: some Garmin watches (e.g., Forerunner 965) have a firmware filter that rejects walking workouts as device-incompatible — see docs/SPORT_TYPE_DISCOVERY.md for the workaround.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "Workout name (required)", minLength: 1 },
+                description: { type: "string", description: "Optional workout description" },
+                steps: {
+                  type: "array",
+                  description: "Array of workout steps (required, at least one step)",
+                  minItems: 1,
+                  items: {
+                    type: "object",
+                    properties: {
+                      type: { type: "string", enum: ["warmup", "interval", "recovery", "cooldown", "rest", "repeat"] },
+                      duration: {
+                        type: "object",
+                        properties: {
+                          type: { type: "string", enum: ["time", "distance", "lap_button"] },
+                          value: { type: "number" },
+                          unit: { type: "string", enum: ["m", "km", "mile"] },
+                        },
+                        required: ["type"],
+                      },
+                      target: {
+                        type: "object",
+                        properties: {
+                          type: { type: "string", enum: ["pace", "hr_zone", "no_target"] },
+                          minValue: { type: "number" },
+                          maxValue: { type: "number" },
+                          zone: { type: "number" },
+                        },
+                        required: ["type"],
+                      },
+                      numberOfRepetitions: { type: "number", minimum: 1 },
+                      childSteps: { type: "array", items: { type: "object" } },
+                    },
+                    required: ["type"],
+                  },
+                },
+              },
+              required: ["name", "steps"],
+            },
+          },
+          {
+            name: "create_other_workout",
+            description: "Create a structured generic 'other' workout in Garmin Connect (Garmin sportType 'other', sportTypeId 3). Use for activities that don't have a dedicated workout sportType: yoga, mobility, calisthenics circuits, generic cardio. Activity logs by whatever sport profile is selected on the watch.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                name: {
+                  type: "string",
+                  description: "Workout name (required)",
+                  minLength: 1,
+                },
+                description: {
+                  type: "string",
+                  description: "Optional workout description",
+                },
+                steps: {
+                  type: "array",
+                  description: "Array of workout steps (required, at least one step)",
+                  minItems: 1,
+                  items: {
+                    type: "object",
+                    properties: {
+                      type: {
+                        type: "string",
+                        enum: ["warmup", "interval", "recovery", "cooldown", "rest", "repeat"],
+                      },
+                      duration: {
+                        type: "object",
+                        properties: {
+                          type: {
+                            type: "string",
+                            enum: ["time", "distance", "lap_button"],
+                          },
+                          value: { type: "number" },
+                          unit: {
+                            type: "string",
+                            enum: ["m", "km", "mile"],
+                          },
+                        },
+                        required: ["type"],
+                      },
+                      target: {
+                        type: "object",
+                        properties: {
+                          type: {
+                            type: "string",
+                            enum: ["pace", "hr_zone", "no_target"],
+                          },
+                          minValue: { type: "number" },
+                          maxValue: { type: "number" },
+                          zone: { type: "number" },
+                        },
+                        required: ["type"],
+                      },
+                      numberOfRepetitions: { type: "number", minimum: 1 },
+                      childSteps: {
+                        type: "array",
+                        items: { type: "object" },
+                      },
+                    },
+                    required: ["type"],
+                  },
+                },
+              },
+              required: ["name", "steps"],
+            },
+          },
+          {
             name: "schedule_workout",
             description: "Schedule a workout to a specific date in Garmin Connect calendar. Use the workoutId from create_running_workout response.",
             inputSchema: {
@@ -529,6 +800,22 @@ class GarminConnectMCPServer {
           case "create_running_workout":
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             result = await this.workoutTools.createRunningWorkout(request.params.arguments as any || {});
+            break;
+          case "create_rucking_workout":
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            result = await this.workoutTools.createRuckingWorkout(request.params.arguments as any || {});
+            break;
+          case "create_walking_workout":
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            result = await this.workoutTools.createWalkingWorkout(request.params.arguments as any || {});
+            break;
+          case "create_cycling_workout":
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            result = await this.workoutTools.createCyclingWorkout(request.params.arguments as any || {});
+            break;
+          case "create_other_workout":
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            result = await this.workoutTools.createOtherWorkout(request.params.arguments as any || {});
             break;
           case "schedule_workout":
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

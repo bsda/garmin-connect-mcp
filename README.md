@@ -441,6 +441,75 @@ Give me a daily breakdown for the past 2 weeks
 - Breakdown by activity type
 - Daily breakdown (when `includeDailyBreakdown: true`)
 
+### Workout Tools
+
+This fork (`bsda/garmin-connect-mcp`) extends upstream with multiple workout-creation
+tools covering different sport types. See [`docs/SPORT_TYPE_DISCOVERY.md`](docs/SPORT_TYPE_DISCOVERY.md)
+for the empirical sport-type ID mapping (some Garmin sport types like `hiking` and
+`strength_training` do **not** have dedicated workout-service IDs — that doc explains
+why and what to use instead).
+
+All workout-creation tools share the same step structure (warmup, interval, recovery,
+cooldown, rest, repeat) with time/distance/lap-button durations and pace/HR-zone/no-target
+intensity targets. They differ only in the `sportType` they assign.
+
+#### `create_running_workout`
+Sport type: `running` (id 1). Standard running workouts.
+
+#### `create_cycling_workout`
+Sport type: `cycling` (id 2). Road, gravel, MTB, indoor trainer.
+
+#### `create_walking_workout`
+Sport type: `walking` (id 12). Closest available match for **hiking** — Garmin has
+no dedicated hiking workout sportType. Use for power-hikes, walks.
+
+> ⚠️ Some Garmin watches (e.g., Forerunner 965) reject walking workouts as device-incompatible.
+> Workaround: create as `running` with `START IN HIKE MODE` in the description; user starts the activity in Hike mode on the watch. See `docs/SPORT_TYPE_DISCOVERY.md`.
+
+#### `create_rucking_workout`
+Sport type: `rucking` (id 13). Weighted-pack hikes / military-style rucks. Same
+device-compatibility caveat as walking.
+
+#### `create_other_workout`
+Sport type: `other` (id 3). Generic catch-all for activities without a dedicated
+workout sportType (yoga done outside structured rounds, mobility flows, calisthenics
+circuits).
+
+**Common parameters across all create_*_workout tools:**
+- `name` (required): Workout name, non-empty string
+- `description` (optional): Workout description
+- `steps` (required, min 1): Array of step objects, each with:
+  - `type`: one of `warmup`, `interval`, `recovery`, `cooldown`, `rest`, `repeat`
+  - `duration`: `{ type: "time" | "distance" | "lap_button", value, unit }`
+  - `target` (optional): `{ type: "pace" | "hr_zone" | "no_target", minValue, maxValue, zone }`
+  - `numberOfRepetitions` (for repeat blocks)
+  - `childSteps` (for repeat blocks)
+
+#### `schedule_workout`
+Schedule a workout to a specific date in the Garmin Connect calendar.
+
+**Parameters:**
+- `workoutId` (required): from any `create_*_workout` response
+- `date` (required): `YYYY-MM-DD`
+
+#### `get_scheduled_workouts`
+List workouts scheduled in a date range (defaults to current week).
+
+**Parameters:**
+- `startDate` (optional): `YYYY-MM-DD`
+- `endDate` (optional): `YYYY-MM-DD`
+
+#### `get_workout_details`
+Get full step structure of a workout by ID.
+
+#### `unschedule_workout`
+Remove a workout from the calendar (workout stays in library).
+
+#### `delete_workout`
+Permanently delete a workout from the library (also unschedules it everywhere).
+
+---
+
 ## Usage Examples
 
 ### Quick Health Check
